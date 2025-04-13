@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interface Mod для Lampa - bywolf</title>
+    <style>
+        @keyframes cosmic-pulse {
+            0% { box-shadow: 0 0 20px rgba(252, 0, 255, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(0, 219, 222, 0.3); }
+            100% { box-shadow: 0 0 20px rgba(252, 0, 255, 0.3); }
+        }
+        @keyframes text-glow {
+            0% { text-shadow: 0 0 10px rgba(252, 0, 255, 0.7); }
+            50% { text-shadow: 0 0 15px rgba(0, 219, 222, 0.8); }
+            100% { text-shadow: 0 0 10px rgba(252, 0, 255, 0.7); }
+        }
+        @keyframes border-pulse {
+            0% { border-color: rgba(252, 0, 255, 0.6); }
+            50% { border-color: rgba(0, 219, 222, 0.8); }
+            100% { border-color: rgba(252, 0, 255, 0.6); }
+        }
+        
+        body {
+            background: linear-gradient(135deg, #090227 0%, #170b34 50%, #261447 100%);
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(90deg, #fc00ff, #00dbde);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 40px;
+            animation: cosmic-pulse 3s infinite;
+        }
+        
+        h1 {
+            margin: 0;
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            animation: text-glow 3s infinite;
+        }
+        
+        h2 {
+            color: #fc00ff;
+            animation: text-glow 3s infinite;
+            margin-top: 40px;
+        }
+        
+        .description {
+            padding: 25px;
+            background: rgba(15, 2, 33, 0.8);
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(252, 0, 255, 0.2);
+            animation: border-pulse 4s infinite;
+        }
+        
+        .features {
+            padding: 25px;
+            background: rgba(15, 2, 33, 0.8);
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(252, 0, 255, 0.2);
+            animation: border-pulse 4s infinite;
+        }
+        
+        .features ul {
+            color: #fff;
+            font-size: 18px;
+            line-height: 1.6;
+            text-shadow: 0 0 5px rgba(0, 219, 222, 0.3);
+            list-style-type: none;
+            padding-left: 10px;
+        }
+        
+        .features li {
+            margin-bottom: 15px;
+            padding-left: 30px;
+            position: relative;
+        }
+        
+        .features li::before {
+            content: "✦";
+            position: absolute;
+            left: 0;
+            color: #fc00ff;
+        }
+        
+        .install {
+            padding: 25px;
+            background: rgba(15, 2, 33, 0.8);
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(252, 0, 255, 0.2);
+            animation: border-pulse 4s infinite;
+        }
+        
+        .code {
+            background: rgba(9, 2, 39, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            overflow: auto;
+            font-family: monospace;
+            font-size: 16px;
+            color: #00dbde;
+            text-shadow: 0 0 5px rgba(0, 219, 222, 0.5);
+            border: 1px solid rgba(252, 0, 255, 0.3);
+        }
+        
+        .support {
+            padding: 25px;
+            background: linear-gradient(90deg, #fc00ff, #00dbde);
+            border-radius: 10px;
+            text-align: center;
+            animation: cosmic-pulse 3s infinite;
+            margin-bottom: 30px;
+        }
+        
+        .support h2 {
+            color: white;
+            margin-top: 0;
+        }
+        
+        .support .bank {
+            font-size: 28px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+        }
+        
+        .button {
+            display: inline-block;
+            background: linear-gradient(45deg, #fc00ff, #00dbde);
+            color: white;
+            padding: 12px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 20px 0;
+            transition: transform 0.3s;
+            animation: cosmic-pulse 2s infinite;
+        }
+        
+        .button:hover {
+            transform: scale(1.05);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .author {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 30px 0;
+        }
+        
+        .author svg {
+            width: 36px;
+            height: 36px;
+            margin-right: 10px;
+            fill: #00dbde;
+            filter: drop-shadow(0 0 5px rgba(0, 219, 222, 0.7));
+        }
+        
+        .author-name {
+            color: #fff;
+            font-size: 20px;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.4);
+        }
+        
+        .author-title {
+            color: #fc00ff;
+            font-size: 22px;
+            margin-right: 10px;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(252, 0, 255, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Interface MOD для Lampa</h1>
+            <p style="font-size: 24px; animation: text-glow 3s infinite;">Версия 2.1.0</p>
+        </header>
+        
+        <div class="description">
+            <h2>Описание плагина</h2>
+            <p>Interface MOD - это плагин для приложения Lampa, который улучшает интерфейс и добавляет множество новых функций для более комфортного использования. Плагин разработан с вниманием к деталям и полностью настраивается через меню настроек.</p>
+        </div>
+        
+        <div class="features">
+            <h2>Основные функции</h2>
+            <ul>
+                <li>Информация о сезонах и сериях в двух строках на постере</li>
+                <li>Цветные рейтинги фильмов и сериалов</li>
+                <li>5 красивых тем оформления интерфейса</li>
+                <li>Отображение всех кнопок в карточке фильма/сериала</li>
+                <li>Изменение лейблов типа контента на "Фильм" и "Сериал"</li>
+            </ul>
+        </div>
+        
+        <div class="install">
+            <h2>Установка плагина</h2>
+            <p>Для установки плагина в приложение Lampa добавьте следующий код в список плагинов:</p>
+            
+            <div class="code">
+                {
+                  "url": "https://bywolf88.github.io/lampa-plugins/interface_mod.js",
+                  "status": 1,
+                  "name": "Interface MOD",
+                  "description": "Улучшенный интерфейс для приложения Lampa",
+                  "version": "2.1.0"
+                }
+            </div>
+            
+            <h3>Альтернативный метод установки</h3>
+            <p>Вы также можете установить плагин напрямую, добавив следующий скрипт в Менеджер плагинов через Custom:</p>
+            
+            <div class="code">
+                https://bywolf88.github.io/lampa-plugins/interface_mod.js
+            </div>
+        </div>
+        
+        <div class="support">
+            <h2>Поддержать разработку</h2>
+            <p>Любая помощь мотивирует на развитие плагина и создание новых функций!</p>
+            
+            <div>OZON Банк</div>
+            <div class="bank">+7 953 235 00 02</div>
+            <div>Владелец: Иван Л.</div>
+        </div>
+        
+        <div class="author">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path>
+            </svg>
+            <span class="author-title">Автор:</span>
+            <span class="author-name">bywolf (Лазарев Иван)</span>
+        </div>
+        
+        <a href="https://bywolf88.github.io/lampa-plugins/interface_mod.js" class="button">Скачать плагин</a>
+        
+        <footer>
+            &copy; 2023 Interface MOD для Lampa. Все права защищены.
+        </footer>
+    </div>
+</body>
+</html>
