@@ -222,20 +222,18 @@
         
         <div class="install">
             <h2>Установка плагина</h2>
-            <p>Для установки плагина в приложение Lampa добавьте следующий код в список плагинов:</p>
+            <p>Для установки плагина в Lampac добавьте в lampac/plugins/lampainit.my.js следующий код:</p>
             
             <div class="code">
-                {
-                  "url": "https://bywolf88.github.io/lampa-plugins/interface_mod.js",
-                  "status": 1,
-                  "name": "Interface MOD",
-                  "description": "Улучшенный интерфейс для приложения Lampa",
-                  "version": "2.1.0"
-                }
+                     var plugins = Lampa.Plugins.get();
+                     var plugins_add = [
+	                 {initiale},
+                //..............Ваш код если есть...............
+	        {"url": "https://bywolf88.github.io/lampa-plugins/interface_mod.js","status": 1,"name": "Interface MOD","author": "bywolf"},
+            ];
             </div>
-            
-            <h3>Альтернативный метод установки</h3>
-            <p>Вы также можете установить плагин напрямую, добавив следующий скрипт в Менеджер плагинов через Custom:</p>
+            <h3>Для установки плагина в Lampa</h3>
+            <p>Зайти в настройки — расширения — добавить плагин и ввести адрес плагина:</p>
             
             <div class="code">
                 https://bywolf88.github.io/lampa-plugins/interface_mod.js
@@ -262,7 +260,7 @@
         <a href="https://bywolf88.github.io/lampa-plugins/interface_mod.js" class="button">Скачать плагин</a>
         
         <footer>
-            &copy; 2023 Interface MOD для Lampa. Все права защищены.
+            &copy; 2025 bywolf. Все права защищены.
         </footer>
     </div>
 </body>
