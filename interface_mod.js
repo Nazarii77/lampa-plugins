@@ -6,14 +6,15 @@
         // Название плагина
         name: 'interface_mod',
         // Версия плагина
-        version: '2.1.0',
+        version: '2.1.1',
         // Настройки по умолчанию
         settings: {
             enabled: true,
             show_buttons: true,
             show_movie_type: true,
             theme: 'default',
-            colored_ratings: true
+            colored_ratings: true,
+            seasons_info_mode: 'aired'
         }
     };
 
@@ -22,11 +23,82 @@
         // Слушатель события загрузки полной информации о фильме/сериале
         Lampa.Listener.follow('full', function (data) {
             if (data.type === 'complite' && data.data.movie.number_of_seasons) {
+                // Проверяем режим отображения информации
+                if (InterFaceMod.settings.seasons_info_mode === 'none') return;
+                
                 // Получаем данные о сериале
                 var movie = data.data.movie;
                 var status = movie.status;
-                var seasons = movie.number_of_seasons;
-                var episodes = movie.number_of_episodes;
+                var totalSeasons = movie.number_of_seasons || 0;
+                var totalEpisodes = movie.number_of_episodes || 0;
+                
+                // Переменные для хранения вышедших сезонов и серий
+                var airedSeasons = 0;
+                var airedEpisodes = 0;
+                
+                // Получаем текущую дату
+                var currentDate = new Date();
+                
+                // Вычисляем количество вышедших сезонов и серий
+                if (movie.seasons) {
+                    movie.seasons.forEach(function(season) {
+                        // Пропускаем "нулевой" сезон (специальные выпуски)
+                        if (season.season_number === 0) return;
+                        
+                        var seasonAired = false;
+                        var seasonEpisodes = 0;
+                        
+                        // Если у сезона есть дата выхода и она в прошлом
+                        if (season.air_date) {
+                            var airDate = new Date(season.air_date);
+                            if (airDate <= currentDate) {
+                                seasonAired = true;
+                                airedSeasons++;
+                            }
+                        }
+                        
+                        // Считаем вышедшие эпизоды в сезоне
+                        if (season.episodes) {
+                            season.episodes.forEach(function(episode) {
+                                if (episode.air_date) {
+                                    var epAirDate = new Date(episode.air_date);
+                                    if (epAirDate <= currentDate) {
+                                        seasonEpisodes++;
+                                        airedEpisodes++;
+                                    }
+                                }
+                            });
+                        } else if (seasonAired && season.episode_count) {
+                            // Если нет детальной информации об эпизодах, но сезон вышел
+                            seasonEpisodes = season.episode_count;
+                            airedEpisodes += seasonEpisodes;
+                        }
+                    });
+                } else if (movie.last_episode_to_air) {
+                    // Альтернативный способ определения по последнему вышедшему эпизоду
+                    airedSeasons = movie.last_episode_to_air.season_number || 0;
+                    
+                    // Проверяем, есть ли информация о последнем эпизоде каждого сезона
+                    if (movie.season_air_dates) {
+                        airedEpisodes = movie.season_air_dates.reduce(function(sum, season) {
+                            return sum + (season.episode_count || 0);
+                        }, 0);
+                    } else if (movie.last_episode_to_air.episode_number) {
+                        // Предполагаем, что все предыдущие сезоны полные
+                        var prevSeasonsEpisodes = 0;
+                        if (airedSeasons > 1) {
+                            for (var i = 1; i < airedSeasons; i++) {
+                                // Предположительно 10-12 эпизодов в сезоне, если нет точных данных
+                                prevSeasonsEpisodes += 10;
+                            }
+                        }
+                        airedEpisodes = prevSeasonsEpisodes + movie.last_episode_to_air.episode_number;
+                    }
+                }
+                
+                // Если не удалось определить вышедшие серии и сезоны, используем общее количество
+                if (airedSeasons === 0) airedSeasons = totalSeasons;
+                if (airedEpisodes === 0) airedEpisodes = totalEpisodes;
                 
                 // Функция для правильного склонения слов
                 function plural(number, one, two, five) {
@@ -45,13 +117,22 @@
                     return five;
                 }
                 
-                // Создаем текст для отображения на постере с правильным склонением
-                var seasonsText = plural(seasons, 'Сезон', 'Сезона', 'Сезонов');
-                var episodesText = plural(episodes, 'Серия', 'Серии', 'Серий');
+                // Выбираем, какую информацию отображать в зависимости от настройки
+                var displaySeasons, displayEpisodes, seasonsText, episodesText;
                 
-                // Формируем текст в две строки
-                var seasonsLine = seasons + ' ' + seasonsText;
-                var episodesLine = episodes + ' ' + episodesText;
+                if (InterFaceMod.settings.seasons_info_mode === 'aired') {
+                    // Отображаем только количество вышедших серий и сезонов
+                    displaySeasons = airedSeasons;
+                    displayEpisodes = airedEpisodes;
+                    seasonsText = plural(displaySeasons, 'Сезон', 'Сезона', 'Сезонов');
+                    episodesText = plural(displayEpisodes, 'Серия', 'Серии', 'Серий');
+                } else {
+                    // Отображаем только общее количество серий и сезонов
+                    displaySeasons = totalSeasons;
+                    displayEpisodes = totalEpisodes;
+                    seasonsText = plural(displaySeasons, 'Сезон', 'Сезона', 'Сезонов');
+                    episodesText = plural(displayEpisodes, 'Серия', 'Серии', 'Серий');
+                }
                 
                 // Определяем фоновый цвет на основе статуса сериала
                 var bgColor = status === 'Ended' || status === 'Canceled' ? '#2196F3' : '#F44336';
@@ -59,12 +140,19 @@
                 // Создаем элемент с информацией о сезонах и сериях
                 var infoElement = $('<div class="season-info-label"></div>');
                 
-                // Создаем внутренние элементы для двух строк
-                var seasonsElement = $('<div></div>').text(seasonsLine);
-                var episodesElement = $('<div></div>').text(episodesLine);
+                // Формируем единую строку с информацией о сезонах и сериях
+                var infoText = '';
+                if (InterFaceMod.settings.seasons_info_mode === 'aired') {
+                    infoText = displaySeasons + ' ' + seasonsText + ', ' + displayEpisodes + ' ' + episodesText;
+                } else {
+                    infoText = displaySeasons + ' ' + seasonsText + ', ' + displayEpisodes + ' ' + episodesText;
+                }
                 
-                // Добавляем строки в основной элемент
-                infoElement.append(seasonsElement).append(episodesElement);
+                // Создаем внутренний элемент с текстом
+                var textElement = $('<div></div>').text(infoText);
+                
+                // Добавляем текст в основной элемент
+                infoElement.append(textElement);
                 
                 infoElement.css({
                     'position': 'absolute',
@@ -72,17 +160,27 @@
                     'right': '-0.8em',
                     'background-color': bgColor,
                     'color': 'white',
-                    'padding': '0.4em 0.4em',
+                    'padding': '0.4em 0.6em',
                     'border-radius': '0.3em',
                     'font-size': '0.8em',
                     'z-index': '999',
                     'text-align': 'center',
-                    'line-height': '1.2'
+                    'white-space': 'nowrap'
                 });
                 
-                // Добавляем элемент на постер
+                // Добавляем элемент на постер и информацию в консоль для отладки
                 setTimeout(function() {
-                    var poster = data.object.activity.render().find('.full-start-new__poster');
+                    console.log('Информация о сериале:', {
+                        title: movie.title || movie.name,
+                        status: status,
+                        totalSeasons: totalSeasons,
+                        totalEpisodes: totalEpisodes,
+                        airedSeasons: airedSeasons,
+                        airedEpisodes: airedEpisodes,
+                        displayMode: InterFaceMod.settings.seasons_info_mode
+                    });
+                    
+                    var poster = $(data.object.activity.render()).find('.full-start-new__poster');
                     if (poster.length) {
                         poster.css('position', 'relative');
                         poster.append(infoElement);
@@ -94,19 +192,59 @@
 
     // Функция для отображения всех кнопок в карточке
     function showAllButtons() {
-        // Слушатель события загрузки полной информации о фильме/сериале
-        Lampa.Listener.follow('full', function (e) {
-            if (e.type === 'complite') {
-                setTimeout(function () {
-                    var fullContainer = e.object.activity.render();
-                    var targetContainer = fullContainer.find('.full-start-new__buttons');
-                    fullContainer.find('.button--play').remove();
+        // Добавляем стили для кнопок с помощью CSS
+        var buttonStyle = document.createElement('style');
+        buttonStyle.id = 'interface_mod_buttons_style';
+        buttonStyle.innerHTML = `
+            .full-start-new__buttons, .full-start__buttons {
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 10px !important;
+            }
+        `;
+        document.head.appendChild(buttonStyle);
+        
+        // Используем Lampa.FullCard для расширения функциональности карточек
+        var originFullCard;
+        
+        // Проверяем, существует ли объект Lampa.FullCard
+        if (Lampa.FullCard) {
+            // Сохраняем оригинальный метод build
+            originFullCard = Lampa.FullCard.build;
+            
+            // Переопределяем метод build для модификации кнопок
+            Lampa.FullCard.build = function(data) {
+                // Вызываем оригинальный метод build
+                var card = originFullCard(data);
+                
+                // Добавляем функцию организации кнопок в карточку
+                card.organizeButtons = function() {
+                    // Находим активность карточки
+                    var activity = card.activity;
+                    if (!activity) return;
                     
-                    // Создадим отдельные селекторы для разных контейнеров
-                    var buttonsContainer = fullContainer.find('.buttons--container .full-start__button');
-                    var existingButtons = targetContainer.find('.full-start__button');
+                    // Получаем элемент активности
+                    var element = activity.render();
+                    if (!element) return;
                     
-                    // Определяем категории кнопок по классам
+                    // Находим контейнеры для кнопок
+                    var targetContainer = element.find('.full-start-new__buttons');
+                    if (!targetContainer.length) {
+                        targetContainer = element.find('.full-start__buttons');
+                    }
+                    if (!targetContainer.length) return;
+                    
+                    // Находим все кнопки из разных контейнеров
+                    var allButtons = [];
+                    element.find('.buttons--container .full-start__button').each(function() {
+                        allButtons.push(this);
+                    });
+                    
+                    element.find('.full-start-new__buttons .full-start__button, .full-start__buttons .full-start__button').each(function() {
+                        allButtons.push(this);
+                    });
+                    
+                    // Категории кнопок
                     var categories = {
                         online: [],
                         torrent: [],
@@ -114,76 +252,146 @@
                         other: []
                     };
                     
-                    // Массив для хранения текстов кнопок чтобы избежать дублирования
+                    // Отслеживаем добавленные кнопки по тексту
                     var addedButtonTexts = {};
                     
-                    // Функция для добавления кнопки в категорию с проверкой на дубликаты
-                    function addButtonToCategory(button, category) {
-                        var $button = $(button);
-                        var buttonText = $button.text().trim();
+                    // Сортируем кнопки по категориям
+                    $(allButtons).each(function() {
+                        var button = this;
+                        var buttonText = $(button).text().trim();
+                        var className = button.className || '';
                         
-                        // Если у кнопки нет текста или такой текст уже есть, пропускаем
-                        if (!buttonText || addedButtonTexts[buttonText]) {
-                            return;
-                        }
-                        
+                        // Пропускаем дубликаты
+                        if (!buttonText || addedButtonTexts[buttonText]) return;
                         addedButtonTexts[buttonText] = true;
-                        categories[category].push($button);
-                    }
-                    
-                    // Обрабатываем кнопки из контейнера buttons--container
-                    buttonsContainer.each(function() {
-                        var $button = $(this);
-                        var className = $button.attr('class');
                         
+                        // Определяем категорию кнопки
                         if (className.includes('online')) {
-                            addButtonToCategory(this, 'online');
+                            categories.online.push(button);
                         } else if (className.includes('torrent')) {
-                            addButtonToCategory(this, 'torrent');
+                            categories.torrent.push(button);
                         } else if (className.includes('trailer')) {
-                            addButtonToCategory(this, 'trailer');
+                            categories.trailer.push(button);
                         } else {
-                            addButtonToCategory(this, 'other');
-                        }
-                    });
-                    
-                    // Обрабатываем кнопки, которые уже есть в целевом контейнере
-                    existingButtons.each(function() {
-                        var $button = $(this);
-                        var className = $button.attr('class');
-                        
-                        if (className.includes('online')) {
-                            addButtonToCategory(this, 'online');
-                        } else if (className.includes('torrent')) {
-                            addButtonToCategory(this, 'torrent');
-                        } else if (className.includes('trailer')) {
-                            addButtonToCategory(this, 'trailer');
-                        } else {
-                            addButtonToCategory(this, 'other');
+                            categories.other.push(button);
                         }
                     });
                     
                     // Порядок кнопок
                     var buttonSortOrder = ['online', 'torrent', 'trailer', 'other'];
-
-                    // Очищаем и заполняем контейнер
-                    targetContainer.empty();
-                    buttonSortOrder.forEach(function (category) {
-                        categories[category].forEach(function ($button) {
-                            targetContainer.append($button);
+                    
+                    // Временно отключаем обновление контроллера
+                    var needToggle = Lampa.Controller.enabled().name === 'full_start';
+                    if (needToggle) Lampa.Controller.toggle('settings_component');
+                    
+                    // Сохраняем оригинальные элементы с событиями
+                    var originalElements = targetContainer.children().detach();
+                    
+                    // Добавляем кнопки в порядке категорий
+                    buttonSortOrder.forEach(function(category) {
+                        categories[category].forEach(function(button) {
+                            targetContainer.append(button);
                         });
                     });
-
-                    // Добавляем стиль для переноса кнопок
-                    targetContainer.css({
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '10px'
-                    });
-
-                    // Включаем контроллер
-                    Lampa.Controller.toggle("full_start");
-                }, 100);
+                    
+                    // Включаем обратно контроллер
+                    if (needToggle) {
+                        setTimeout(function() {
+                            Lampa.Controller.toggle('full_start');
+                        }, 50);
+                    }
+                };
+                
+                // Вызываем организацию кнопок при готовности карточки
+                card.onCreate = function() {
+                    if (InterFaceMod.settings.show_buttons) {
+                        setTimeout(function() {
+                            card.organizeButtons();
+                        }, 100);
+                    }
+                };
+                
+                return card;
+            };
+        }
+        
+        // Для совместимости, также перехватываем событие создания карточки
+        Lampa.Listener.follow('full', function(e) {
+            if (e.type === 'complite' && e.object && e.object.activity) {
+                if (InterFaceMod.settings.show_buttons && !Lampa.FullCard) {
+                    setTimeout(function() {
+                        var fullContainer = e.object.activity.render();
+                        var targetContainer = fullContainer.find('.full-start-new__buttons');
+                        if (!targetContainer.length) {
+                            targetContainer = fullContainer.find('.full-start__buttons');
+                        }
+                        if (!targetContainer.length) return;
+                        
+                        // Применяем стили для контейнера
+                        targetContainer.css({
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '10px'
+                        });
+                        
+                        // Остальной код аналогичен тому, что был выше
+                        var allButtons = [];
+                        fullContainer.find('.buttons--container .full-start__button').each(function() {
+                            allButtons.push(this);
+                        });
+                        
+                        fullContainer.find('.full-start-new__buttons .full-start__button, .full-start__buttons .full-start__button').each(function() {
+                            allButtons.push(this);
+                        });
+                        
+                        var categories = {
+                            online: [],
+                            torrent: [],
+                            trailer: [],
+                            other: []
+                        };
+                        
+                        var addedButtonTexts = {};
+                        
+                        $(allButtons).each(function() {
+                            var button = this;
+                            var buttonText = $(button).text().trim();
+                            var className = button.className || '';
+                            
+                            if (!buttonText || addedButtonTexts[buttonText]) return;
+                            addedButtonTexts[buttonText] = true;
+                            
+                            if (className.includes('online')) {
+                                categories.online.push(button);
+                            } else if (className.includes('torrent')) {
+                                categories.torrent.push(button);
+                            } else if (className.includes('trailer')) {
+                                categories.trailer.push(button);
+                            } else {
+                                categories.other.push(button);
+                            }
+                        });
+                        
+                        var buttonSortOrder = ['online', 'torrent', 'trailer', 'other'];
+                        
+                        var needToggle = Lampa.Controller.enabled().name === 'full_start';
+                        if (needToggle) Lampa.Controller.toggle('settings_component');
+                        
+                        var originalElements = targetContainer.children().detach();
+                        
+                        buttonSortOrder.forEach(function(category) {
+                            categories[category].forEach(function(button) {
+                                targetContainer.append(button);
+                            });
+                        });
+                        
+                        if (needToggle) {
+                            setTimeout(function() {
+                                Lampa.Controller.toggle('full_start');
+                            }, 50);
+                        }
+                    }, 100);
+                }
             }
         });
     }
@@ -191,8 +399,7 @@
     // Функция для изменения лейблов TV и добавления лейбла ФИЛЬМ
     function changeMovieTypeLabels() {
         // Добавляем CSS стили для изменения лейблов
-        var styleTag = document.createElement('style');
-        styleTag.innerHTML = `
+        var styleTag = $('<style id="movie_type_styles"></style>').html(`
             /* Базовый стиль для всех лейблов */
             .content-label {
                 position: absolute !important;
@@ -215,42 +422,48 @@
                 background-color: #2ecc71 !important;
             }
             
-            /* Скрываем встроенный лейбл TV */
-            .card--tv .card__type {
+            /* Скрываем встроенный лейбл TV только при включенной функции */
+            body[data-movie-labels="on"] .card--tv .card__type {
                 display: none !important;
             }
-        `;
-        document.head.appendChild(styleTag);
+        `);
+        $('head').append(styleTag);
+        
+        // Устанавливаем атрибут для body, чтобы CSS мог определить, включена функция или нет
+        if (InterFaceMod.settings.show_movie_type) {
+            $('body').attr('data-movie-labels', 'on');
+        } else {
+            $('body').attr('data-movie-labels', 'off');
+        }
         
         // Функция для добавления лейбла к карточке
         function addLabelToCard(card) {
             if (!InterFaceMod.settings.show_movie_type) return;
             
             // Если уже есть наш лейбл, пропускаем
-            if (card.querySelector('.content-label')) return;
+            if ($(card).find('.content-label').length) return;
             
-            var view = card.querySelector('.card__view');
-            if (!view) return;
+            var view = $(card).find('.card__view');
+            if (!view.length) return;
             
-            var is_tv = card.classList.contains('card--tv');
-            var label = document.createElement('div');
-            label.classList.add('content-label');
+            var is_tv = $(card).hasClass('card--tv');
+            var label = $('<div class="content-label"></div>');
             
             // Определяем тип контента (только фильм или сериал)
             if (is_tv) {
                 // Для сериалов
-                label.classList.add('serial-label');
-                label.textContent = 'Сериал';
-                label.dataset.type = 'serial';
+                label.addClass('serial-label');
+                label.text('Сериал');
+                label.data('type', 'serial');
             } else {
                 // Для фильмов
-                label.classList.add('movie-label');
-                label.textContent = 'Фильм';
-                label.dataset.type = 'movie';
+                label.addClass('movie-label');
+                label.text('Фильм');
+                label.data('type', 'movie');
             }
             
             // Добавляем лейбл
-            view.appendChild(label);
+            view.append(label);
         }
         
         // Обработка всех карточек
@@ -258,9 +471,8 @@
             if (!InterFaceMod.settings.show_movie_type) return;
             
             // Находим все карточки на странице
-            var cards = document.querySelectorAll('.card');
-            cards.forEach(function(card) {
-                addLabelToCard(card);
+            $('.card').each(function() {
+                addLabelToCard(this);
             });
         }
         
@@ -272,7 +484,7 @@
                 if (mutation.addedNodes && mutation.addedNodes.length) {
                     for (var i = 0; i < mutation.addedNodes.length; i++) {
                         var node = mutation.addedNodes[i];
-                        if (node.classList && (node.classList.contains('card') || node.querySelector('.card'))) {
+                        if ($(node).hasClass('card') || $(node).find('.card').length) {
                             needCheck = true;
                             break;
                         }
@@ -302,19 +514,16 @@
             if (e.name === 'season_info_show_movie_type') {
                 if (e.value) {
                     // Если включено, добавляем стили и лейблы
-                    if (!document.querySelector('style[data-id="movie-type-styles"]')) {
-                        styleTag.dataset.id = 'movie-type-styles';
-                        document.head.appendChild(styleTag);
+                    if (!$('style[data-id="movie-type-styles"]').length) {
+                        styleTag.attr('data-id', 'movie-type-styles');
+                        $('head').append(styleTag);
                     }
+                    $('body').attr('data-movie-labels', 'on');
                     processAllCards();
                 } else {
                     // Если отключено, удаляем стили и лейблы
-                    var style = document.querySelector('style[data-id="movie-type-styles"]');
-                    if (style) style.remove();
-                    
-                    document.querySelectorAll('.content-label').forEach(function(label) {
-                        label.remove();
-                    });
+                    $('body').attr('data-movie-labels', 'off');
+                    $('.content-label').remove();
                 }
             }
         });
@@ -323,15 +532,13 @@
     // Функция для применения тем
     function applyTheme(theme) {
         // Удаляем предыдущие стили темы
-        const oldStyle = document.querySelector('#interface_mod_theme');
-        if (oldStyle) oldStyle.remove();
+        $('#interface_mod_theme').remove();
 
         // Если выбрано "Нет", просто удаляем стили
         if (theme === 'default') return;
 
         // Создаем новый стиль
-        const style = document.createElement('style');
-        style.id = 'interface_mod_theme';
+        const style = $('<style id="interface_mod_theme"></style>');
 
         // Определяем стили для разных тем
         const themes = {
@@ -535,8 +742,11 @@
             `
         };
 
-        style.textContent = themes[theme] || '';
-        document.head.appendChild(style);
+        // Устанавливаем стили для выбранной темы
+        style.html(themes[theme] || '');
+        
+        // Добавляем стиль в head
+        $('head').append(style);
     }
 
     // Функция для изменения цвета рейтинга фильмов и сериалов
@@ -545,7 +755,7 @@
         
         // Функция для изменения цвета элемента в зависимости от рейтинга
         function applyColorByRating(element) {
-            const voteText = element.textContent.trim();
+            const voteText = $(element).text().trim();
             // Регулярное выражение для извлечения числа из текста
             const match = voteText.match(/(\d+(\.\d+)?)/);
             if (!match) return;
@@ -553,29 +763,29 @@
             const vote = parseFloat(match[0]);
             
             if (vote >= 0 && vote <= 3) {
-                element.style.color = "red";
+                $(element).css('color', "red");
             } else if (vote > 3 && vote < 6) {
-                element.style.color = "orange";
+                $(element).css('color', "orange");
             } else if (vote >= 6 && vote < 8) {
-                element.style.color = "cornflowerblue";
+                $(element).css('color', "cornflowerblue");
             } else if (vote >= 8 && vote <= 10) {
-                element.style.color = "lawngreen";
+                $(element).css('color', "lawngreen");
             }
         }
         
         // Обрабатываем рейтинги на главной странице и в списках
-        document.querySelectorAll(".card__vote").forEach(voteElement => {
-            applyColorByRating(voteElement);
+        $(".card__vote").each(function() {
+            applyColorByRating(this);
         });
         
         // Обрабатываем рейтинги в детальной карточке фильма/сериала
-        document.querySelectorAll(".full-start__rate, .full-start-new__rate").forEach(rateElement => {
-            applyColorByRating(rateElement);
+        $(".full-start__rate, .full-start-new__rate").each(function() {
+            applyColorByRating(this);
         });
         
         // Также обрабатываем другие возможные элементы с рейтингом
-        document.querySelectorAll(".info__rate, .card__imdb-rate, .card__kinopoisk-rate").forEach(rateElement => {
-            applyColorByRating(rateElement);
+        $(".info__rate, .card__imdb-rate, .card__kinopoisk-rate").each(function() {
+            applyColorByRating(this);
         });
     }
 
@@ -638,16 +848,30 @@
         Lampa.SettingsApi.addParam({
             component: 'season_info',
             param: {
-                name: 'season_info_enabled',
-                type: 'trigger',
-                default: true
+                name: 'seasons_info_mode',
+                type: 'select',
+                values: {
+                    'none': 'Нет',
+                    'aired': 'Количество вышедших',
+                    'total': 'Полное количество'
+                },
+                default: 'aired'
             },
             field: {
-                name: 'Информация о сезонах на постере',
-                description: 'Отображать количество сезонов и серий на постере'
+                name: 'Выбор лейбла о кол-ве серий на постере',
+                description: 'Выберите как отображать информацию о сериях и сезонах'
             },
             onChange: function (value) {
-                InterFaceMod.settings.enabled = value;
+                InterFaceMod.settings.seasons_info_mode = value;
+                
+                // Если выбрали "Нет", отключаем отображение информации
+                if (value === 'none') {
+                    InterFaceMod.settings.enabled = false;
+                } else {
+                    // Если выбрали какой-то режим, включаем отображение
+                    InterFaceMod.settings.enabled = true;
+                }
+                
                 Lampa.Settings.update();
             }
         });
@@ -740,9 +964,7 @@
                         setupVoteColorsForDetailPage();
                     } else {
                         // Если отключено, возвращаем стандартный цвет для всех элементов с рейтингом
-                        document.querySelectorAll(".card__vote, .full-start__rate, .full-start-new__rate, .info__rate, .card__imdb-rate, .card__kinopoisk-rate").forEach(element => {
-                            element.style.color = "";
-                        });
+                        $(".card__vote, .full-start__rate, .full-start-new__rate, .info__rate, .card__imdb-rate, .card__kinopoisk-rate").css("color", "");
                     }
                     
                     // Возвращаем фокус на активный элемент
@@ -754,11 +976,14 @@
         });
         
         // Применяем настройки
-        InterFaceMod.settings.enabled = Lampa.Storage.get('season_info_enabled', true);
         InterFaceMod.settings.show_buttons = Lampa.Storage.get('season_info_show_buttons', true);
         InterFaceMod.settings.show_movie_type = Lampa.Storage.get('season_info_show_movie_type', true);
         InterFaceMod.settings.theme = Lampa.Storage.get('theme_select', 'default');
         InterFaceMod.settings.colored_ratings = Lampa.Storage.get('colored_ratings', true);
+        InterFaceMod.settings.seasons_info_mode = Lampa.Storage.get('seasons_info_mode', 'aired');
+        
+        // Устанавливаем enabled на основе seasons_info_mode
+        InterFaceMod.settings.enabled = (InterFaceMod.settings.seasons_info_mode !== 'none');
         
         applyTheme(InterFaceMod.settings.theme);
         
@@ -782,8 +1007,7 @@
         }
     }
 
-function _0x1452(){var _0xc2c82a=['</h1>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__description\x22\x20style=\x22padding:\x2015px;\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x20border-radius:\x2010px;\x20margin-bottom:\x2020px;\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x20animation:\x20border-pulse\x204s\x20infinite;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22margin-bottom:\x2015px;\x20color:\x20#fff;\x20font-size:\x2016px;\x20line-height:\x201.5;\x20text-shadow:\x200\x200\x205px\x20rgba(0,\x20219,\x20222,\x200.3);\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Плагин\x20улучшает\x20интерфейс\x20Lampa\x20с\x20разнообразными\x20функциями:\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<ul\x20style=\x22color:\x20#fff;\x20font-size:\x2015px;\x20line-height:\x201.5;\x20text-shadow:\x200\x200\x205px\x20rgba(0,\x20219,\x20222,\x200.3);\x20list-style-type:\x20none;\x20padding-left:\x2010px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li\x20style=\x22margin-bottom:\x208px;\x20padding-left:\x2020px;\x20position:\x20relative;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<span\x20style=\x22position:\x20absolute;\x20left:\x200;\x20color:\x20#fc00ff;\x22>✦</span>\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Информация\x20о\x20сезонах\x20и\x20сериях\x20в\x20двух\x20строках\x20на\x20постере\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li\x20style=\x22margin-bottom:\x208px;\x20padding-left:\x2020px;\x20position:\x20relative;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<span\x20style=\x22position:\x20absolute;\x20left:\x200;\x20color:\x20#fc00ff;\x22>✦</span>\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Цветные\x20рейтинги\x20фильмов\x20и\x20сериалов\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li\x20style=\x22margin-bottom:\x208px;\x20padding-left:\x2020px;\x20position:\x20relative;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<span\x20style=\x22position:\x20absolute;\x20left:\x200;\x20color:\x20#fc00ff;\x22>✦</span>\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Красивые\x20темы\x20оформления\x20интерфейса\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li\x20style=\x22margin-bottom:\x208px;\x20padding-left:\x2020px;\x20position:\x20relative;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<span\x20style=\x22position:\x20absolute;\x20left:\x200;\x20color:\x20#fc00ff;\x22>✦</span>\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Отображение\x20всех\x20кнопок\x20в\x20карточке\x20фильма/сериала\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li\x20style=\x22margin-bottom:\x200;\x20padding-left:\x2020px;\x20position:\x20relative;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<span\x20style=\x22position:\x20absolute;\x20left:\x200;\x20color:\x20#fc00ff;\x22>✦</span>\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Изменение\x20лейблов\x20типа\x20контента\x20на\x20\x22Фильм\x22\x20и\x20\x22Сериал\x22\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__author\x22\x20style=\x22padding:\x2015px;\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x20border-radius:\x2010px;\x20margin-bottom:\x2020px;\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x20animation:\x20border-pulse\x204s\x20infinite;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22display:\x20flex;\x20align-items:\x20center;\x20justify-content:\x20center;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<svg\x20style=\x22width:\x2028px;\x20height:\x2028px;\x20margin-right:\x208px;\x20fill:\x20#00dbde;\x20filter:\x20drop-shadow(0\x200\x205px\x20rgba(0,\x20219,\x20222,\x200.7));\x22\x20viewBox=\x220\x200\x2024\x2024\x22\x20xmlns=\x22http://www.w3.org/2000/svg\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<path\x20d=\x22M12\x2012c2.21\x200\x204-1.79\x204-4s-1.79-4-4-4-4\x201.79-4\x204\x201.79\x204\x204\x204zm0\x202c-2.67\x200-8\x201.34-8\x204v2h16v-2c0-2.66-5.33-4-8-4z\x22></path>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</svg>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<span\x20style=\x22color:#fc00ff;\x20font-size:\x2018px;\x20margin-right:\x208px;\x20font-weight:\x20bold;\x20text-shadow:\x200\x200\x205px\x20rgba(252,\x200,\x20255,\x200.7);\x22>Автор:</span>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<span\x20style=\x22color:\x20#fff;\x20font-size:\x2016px;\x20text-shadow:\x200\x200\x205px\x20rgba(255,\x20255,\x20255,\x200.4);\x22>bywolf\x20(Лазарев\x20Иван)</span>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__support\x22\x20style=\x22padding:\x2015px;\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x20border-radius:\x2010px;\x20text-align:\x20center;\x20animation:\x20cosmic-pulse\x202s\x20infinite;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h3\x20style=\x22margin-top:\x200;\x20color:\x20white;\x20font-size:\x2020px;\x20font-weight:\x20bold;\x20animation:\x20text-glow\x202s\x20infinite;\x22>Поддержать\x20разработку</h3>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2016px;\x20margin-bottom:\x2010px;\x20text-shadow:\x200\x200\x205px\x20rgba(255,\x20255,\x20255,\x200.5);\x22>OZON\x20Банк</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2022px;\x20font-weight:\x20bold;\x20margin-bottom:\x2010px;\x20text-shadow:\x200\x200\x208px\x20rgba(255,\x20255,\x20255,\x200.7);\x22>+7\x20953\x20235\x2000\x2002</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#ffffff;\x20font-size:\x2014px;\x20text-shadow:\x200\x200\x208px\x20rgba(255,\x20255,\x20255,\x200.8);\x22>Владелец:\x20Иван\x20Л.</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2012px;\x20margin-top:\x2010px;\x20text-shadow:\x200\x200\x205px\x20rgba(255,\x20255,\x20255,\x200.5);\x22>Любая\x20помощь\x20мотивирует\x20на\x20развитие\x20плагина!</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20','medium','appendChild','27TsmQjd','getElementById','503144UjhVwd','open','about-plugin-styles','<div></div>','1954386BnvvPj','69024JcoYpD','settings','1554248PzlCan','html','version','remove','3njcIcl','toggle','455190itYEpA','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20@keyframes\x20cosmic-pulse\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x200%\x20{\x20box-shadow:\x200\x200\x2020px\x20rgba(252,\x200,\x20255,\x200.3);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x2050%\x20{\x20box-shadow:\x200\x200\x2030px\x20rgba(0,\x20219,\x20222,\x200.3);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20100%\x20{\x20box-shadow:\x200\x200\x2020px\x20rgba(252,\x200,\x20255,\x200.3);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20@keyframes\x20text-glow\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x200%\x20{\x20text-shadow:\x200\x200\x2010px\x20rgba(252,\x200,\x20255,\x200.7);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x2050%\x20{\x20text-shadow:\x200\x200\x2015px\x20rgba(0,\x20219,\x20222,\x200.8);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20100%\x20{\x20text-shadow:\x200\x200\x2010px\x20rgba(252,\x200,\x20255,\x200.7);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20@keyframes\x20border-pulse\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x200%\x20{\x20border-color:\x20rgba(252,\x200,\x20255,\x200.6);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x2050%\x20{\x20border-color:\x20rgba(0,\x20219,\x20222,\x200.8);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20100%\x20{\x20border-color:\x20rgba(252,\x200,\x20255,\x200.6);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20','createElement','2871522JRvXBW','Modal','close','533027kCGWuZ'];_0x1452=function(){return _0xc2c82a;};return _0x1452();}(function(_0x309ae1,_0xe68bec){var _0x4712f2=_0x1274,_0x32dd2e=_0x309ae1();while(!![]){try{var _0x45d271=-parseInt(_0x4712f2(0x157))/0x1+-parseInt(_0x4712f2(0x15d))/0x2*(-parseInt(_0x4712f2(0x14f))/0x3)+parseInt(_0x4712f2(0x149))/0x4+-parseInt(_0x4712f2(0x151))/0x5+parseInt(_0x4712f2(0x154))/0x6+-parseInt(_0x4712f2(0x148))/0x7+parseInt(_0x4712f2(0x14b))/0x8*(parseInt(_0x4712f2(0x15b))/0x9);if(_0x45d271===_0xe68bec)break;else _0x32dd2e['push'](_0x32dd2e['shift']());}catch(_0x52c744){_0x32dd2e['push'](_0x32dd2e['shift']());}}}(_0x1452,0x683f3));function _0x1274(_0x2f201f,_0x513601){var _0x145257=_0x1452();return _0x1274=function(_0x1274c4,_0x357fc6){_0x1274c4=_0x1274c4-0x147;var _0x3bae36=_0x145257[_0x1274c4];return _0x3bae36;},_0x1274(_0x2f201f,_0x513601);}function showAbout(){var _0xd9eae2=_0x1274,_0xc02f72=document[_0xd9eae2(0x153)]('style');_0xc02f72['id']=_0xd9eae2(0x15f),_0xc02f72['innerHTML']=_0xd9eae2(0x152),document['head'][_0xd9eae2(0x15a)](_0xc02f72);var _0x30d79d='\x0a\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin\x22\x20style=\x22background:\x20rgba(9,\x202,\x2039,\x200.95);\x20border-radius:\x2015px;\x20overflow:\x20hidden;\x20padding:\x2010px;\x20box-shadow:\x200\x200\x2030px\x20rgba(0,\x20219,\x20222,\x200.1);\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__title\x22\x20style=\x22background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x20padding:\x2020px;\x20border-radius:\x2010px;\x20text-align:\x20center;\x20margin-bottom:\x2020px;\x20animation:\x20cosmic-pulse\x202s\x20infinite;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h1\x20style=\x22margin:\x200;\x20color:\x20white;\x20font-size:\x2028px;\x20font-weight:\x20bold;\x20animation:\x20text-glow\x202s\x20infinite;\x22>Интерфейс\x20MOD\x20bywolf\x20v'+InterFaceMod[_0xd9eae2(0x14d)]+_0xd9eae2(0x158),_0x4eac5b=$(_0xd9eae2(0x147));_0x4eac5b[_0xd9eae2(0x14c)](_0x30d79d),Lampa['Modal'][_0xd9eae2(0x15e)]({'title':'','html':_0x4eac5b,'onBack':function(){var _0x4c89e3=_0xd9eae2,_0x3ea2dd=document[_0x4c89e3(0x15c)](_0x4c89e3(0x15f));if(_0x3ea2dd)_0x3ea2dd[_0x4c89e3(0x14e)]();Lampa[_0x4c89e3(0x155)][_0x4c89e3(0x156)](),Lampa['Controller'][_0x4c89e3(0x150)](_0x4c89e3(0x14a));},'size':_0xd9eae2(0x159)});}
-
+(function(_0x1a0090,_0x832960){var _0x19be02=_0x59b6,_0x35e1c2=_0x1a0090();while(!![]){try{var _0x82df22=parseInt(_0x19be02(0x1f6))/0x1+parseInt(_0x19be02(0x1e3))/0x2*(-parseInt(_0x19be02(0x1f7))/0x3)+-parseInt(_0x19be02(0x1ea))/0x4+-parseInt(_0x19be02(0x1fb))/0x5*(parseInt(_0x19be02(0x1ef))/0x6)+parseInt(_0x19be02(0x20f))/0x7*(parseInt(_0x19be02(0x20d))/0x8)+parseInt(_0x19be02(0x20c))/0x9*(-parseInt(_0x19be02(0x1eb))/0xa)+parseInt(_0x19be02(0x1f9))/0xb*(parseInt(_0x19be02(0x206))/0xc);if(_0x82df22===_0x832960)break;else _0x35e1c2['push'](_0x35e1c2['shift']());}catch(_0x4a9317){_0x35e1c2['push'](_0x35e1c2['shift']());}}}(_0x41c7,0x76412));function showAbout(){var _0x3c3e2d=_0x59b6;$(_0x3c3e2d(0x204))[_0x3c3e2d(0x1f2)]&&$(_0x3c3e2d(0x204))[_0x3c3e2d(0x1e7)]();var _0x2f1983=$('<style\x20id=\x22about-plugin-styles\x22></style>');_0x2f1983['html'](_0x3c3e2d(0x1fe)),$(_0x3c3e2d(0x1ff))[_0x3c3e2d(0x1e9)](_0x2f1983);var _0xe3cd7=_0x3c3e2d(0x200)+InterFaceMod[_0x3c3e2d(0x20e)]+_0x3c3e2d(0x1fc),_0x2b7928=$(_0x3c3e2d(0x201));_0x2b7928[_0x3c3e2d(0x1e4)](_0xe3cd7),Lampa['Modal'][_0x3c3e2d(0x203)]({'title':'','html':_0x2b7928,'onBack':function(){var _0x4e90c6=_0x3c3e2d;$(_0x4e90c6(0x204))[_0x4e90c6(0x1e7)](),Lampa[_0x4e90c6(0x20b)]['close'](),Lampa['Controller']['toggle'](_0x4e90c6(0x1f0));},'size':_0x3c3e2d(0x1ec)});var _0x183833=_0x3c3e2d(0x20a)+Math['random']();fetch(_0x183833)['then'](function(_0x3789a5){var _0x2d1db7=_0x3c3e2d;if(!_0x3789a5['ok'])throw new Error('Сетевой\x20ответ\x20некорректен');return _0x3789a5[_0x2d1db7(0x1fd)]();})[_0x3c3e2d(0x1f3)](function(_0x26c3e6){var _0x25a547=_0x3c3e2d;if(_0x26c3e6&&_0x26c3e6[_0x25a547(0x1f1)]&&_0x26c3e6[_0x25a547(0x1fa)]){var _0x1003c='';_0x26c3e6['supporters']['forEach'](function(_0x3f241b){var _0x344501=_0x25a547;_0x1003c+=_0x344501(0x1f8)+_0x3f241b[_0x344501(0x1ed)]+_0x344501(0x207)+_0x3f241b['contribution']+_0x344501(0x207)+_0x3f241b['date']+_0x344501(0x205);}),_0x2b7928[_0x25a547(0x202)](_0x25a547(0x1ee))[_0x25a547(0x1e4)](_0x1003c);var _0x2d8803='';_0x26c3e6[_0x25a547(0x1fa)][_0x25a547(0x1e8)](function(_0x281dde){var _0x357fa8=_0x25a547;_0x2d8803+='\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>'+_0x281dde[_0x357fa8(0x1ed)]+'</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>'+_0x281dde[_0x357fa8(0x1e6)]+_0x357fa8(0x207)+_0x281dde[_0x357fa8(0x1e5)]+'</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20';}),_0x2b7928[_0x25a547(0x202)](_0x25a547(0x209))[_0x25a547(0x1e4)](_0x2d8803);}})[_0x3c3e2d(0x208)](function(_0x5009d8){var _0x37acd2=_0x3c3e2d;console['error'](_0x37acd2(0x1f4),_0x5009d8);var _0x18a1a2=_0x37acd2(0x1f5);_0x2b7928['find'](_0x37acd2(0x1ee))[_0x37acd2(0x1e4)](_0x18a1a2),_0x2b7928['find'](_0x37acd2(0x209))[_0x37acd2(0x1e4)](_0x18a1a2);});}function _0x59b6(_0x425f5d,_0x2d5852){var _0x41c78e=_0x41c7();return _0x59b6=function(_0x59b663,_0x3fc839){_0x59b663=_0x59b663-0x1e3;var _0x114bb9=_0x41c78e[_0x59b663];return _0x114bb9;},_0x59b6(_0x425f5d,_0x2d5852);}function _0x41c7(){var _0x4bc8c1=['340esgrYb','full','name','.supporters-list','9006gPIdFg','settings','supporters','length','then','Ошибка\x20загрузки\x20данных:','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Ошибка\x20загрузки\x20данных</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>Проверьте\x20соединение</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','635873OkAryV','51OPoiZp','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>','11gfyddY','contributors','475ZVGEnm','</h1>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__footer\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h3>Поддержать\x20разработку</h3>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2014px;\x20margin-bottom:\x205px;\x22>OZON\x20Банк</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2018px;\x20font-weight:\x20bold;\x20margin-bottom:\x205px;\x22>+7\x20953\x20235\x2000\x2002</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#ffffff;\x20font-size:\x2012px;\x22>Владелец:\x20Иван\x20Л.</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-container\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Особая\x20благодарность\x20в\x20поддержке:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20supporters-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Спасибо\x20за\x20идеи\x20и\x20разработку:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20contributors-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__description\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#fff;\x20font-size:\x2015px;\x20margin-bottom:\x2010px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Плагин\x20улучшает\x20интерфейс\x20Lampa\x20с\x20различными\x20функциями:\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Информация\x20о\x20сезонах\x20и\x20сериях\x20на\x20постере\x20сериала</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Цветные\x20рейтинги\x20фильмов\x20и\x20сериалов\x20с\x20адаптивной\x20шкалой</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Несколько\x20стильных\x20тем\x20оформления\x20интерфейса</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Отображение\x20и\x20сортировка\x20всех\x20кнопок\x20в\x20карточке\x20фильма</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Лейблы\x20типа\x20контента\x20\x22Фильм\x22\x20и\x20\x22Сериал\x22\x20на\x20карточках</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Улучшенная\x20визуализация\x20статуса\x20сериалов</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Адаптивный\x20интерфейс\x20для\x20различных\x20устройств</li>\x0a\x09\x09\x09\x09\x09\x20<li><span>✦</span>\x20Мелкие\x20недочёты\x20ускорена\x20работа\x20плагина</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20','json','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(9,\x202,\x2039,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x200\x2015px\x20rgba(0,\x20219,\x20222,\x200.1);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20h1\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2024px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(255,\x20255,\x20255,\x200.5);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20ul\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20line-height:\x201.5;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20list-style-type:\x20none;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x2010px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x206px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20span\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20h3\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2018px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-container\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20display:\x20flex;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20justify-content:\x20space-between;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-column\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x2048%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20height:\x20200px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2016px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20z-index:\x2010;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x208px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x205px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x202px\x205px\x20rgba(0,\x200,\x200,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-bottom:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-list\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x20100%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x200\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-sizing:\x20border-box;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20animation:\x20scrollCredits\x2030s\x20linear\x20infinite;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-top:\x2060px;\x20/*\x20Увеличенный\x20отступ\x20перед\x20началом\x20титров\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x20/*\x20Дополнительный\x20отступ\x20от\x20заголовка\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-item\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-name\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x204px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-contribution\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2012px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20opacity:\x200.8;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20@keyframes\x20scrollCredits\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x200%\x20{\x20transform:\x20translateY(50%);\x20}\x20/*\x20Начинаем\x20анимацию\x20с\x20середины\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20100%\x20{\x20transform:\x20translateY(-100%);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20','head','\x0a\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__title\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h1>Интерфейс\x20MOD\x20v','<div></div>','find','open','#about-plugin-styles','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','11787072TDlJAf','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>','catch','.contributors-list','https://bywolf88.github.io/lampa-plugins/usersupp.json?nocache=','Modal','244287eLgYkG','528ecSkDQ','version','63791APWREH','15214OCqsgi','html','date','contribution','remove','forEach','append','2161764Wwnsgh'];_0x41c7=function(){return _0x4bc8c1;};return _0x41c7();}
 
     // Ждем загрузки приложения и запускаем плагин
     if (window.appready) {
@@ -799,7 +1023,7 @@ function _0x1452(){var _0xc2c82a=['</h1>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20
     // Регистрация плагина в манифесте
     Lampa.Manifest.plugins = {
         name: 'Интерфейс мод',
-        version: '2.1.0',
+        version: '2.1.1',
         description: 'Улучшенный интерфейс для приложения Lampa'
     };
 
