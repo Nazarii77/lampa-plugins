@@ -18,8 +18,13 @@
     ],
     "contributors": [
         {
-            "name": "Михаил Зайцев",
-            "contribution": "Разработка темы Emerald",
+            "name": "TG: @fovway",
+            "contribution": "Идея цветных рейтингов",
+            "date": " "
+        },
+        {
+            "name": "TG: @modss_channel",
+            "contribution": "За идеи из плагина Modss",
             "date": " "
         }
     ]
