@@ -6,15 +6,19 @@
         // Название плагина
         name: 'interface_mod',
         // Версия плагина
-        version: '2.1.1',
+        version: '2.1.2',
+        // Включить отладку
+        debug: false,
         // Настройки по умолчанию
         settings: {
             enabled: true,
-            show_buttons: true,
+            buttons_mode: 'default', // 'default', 'main_buttons', 'all_buttons'
             show_movie_type: true,
             theme: 'default',
             colored_ratings: true,
-            seasons_info_mode: 'aired'
+            seasons_info_mode: 'aired',
+            show_episodes_on_main: false,
+            label_position: 'top-right' // 'top-right', 'top-left', 'bottom-right', 'bottom-left'
         }
     };
 
@@ -31,6 +35,10 @@
                 var status = movie.status;
                 var totalSeasons = movie.number_of_seasons || 0;
                 var totalEpisodes = movie.number_of_episodes || 0;
+                
+                // Выводим детальную информацию о сериале в консоль для отладки
+                console.log('Детальная информация о сериале:', movie.title || movie.name);
+                console.log('Структура данных сериала:', JSON.stringify(movie, null, 2));
                 
                 // Переменные для хранения вышедших сезонов и серий
                 var airedSeasons = 0;
@@ -73,6 +81,8 @@
                             seasonEpisodes = season.episode_count;
                             airedEpisodes += seasonEpisodes;
                         }
+                        
+                        console.log('Сезон ' + season.season_number + ': вышло ' + seasonEpisodes + ' из ' + (season.episode_count || 0) + ' серий');
                     });
                 } else if (movie.last_episode_to_air) {
                     // Альтернативный способ определения по последнему вышедшему эпизоду
@@ -84,21 +94,89 @@
                             return sum + (season.episode_count || 0);
                         }, 0);
                     } else if (movie.last_episode_to_air.episode_number) {
-                        // Предполагаем, что все предыдущие сезоны полные
-                        var prevSeasonsEpisodes = 0;
-                        if (airedSeasons > 1) {
-                            for (var i = 1; i < airedSeasons; i++) {
-                                // Предположительно 10-12 эпизодов в сезоне, если нет точных данных
-                                prevSeasonsEpisodes += 10;
+                        // Получаем информацию о последнем вышедшем эпизоде
+                        var lastSeason = movie.last_episode_to_air.season_number;
+                        var lastEpisode = movie.last_episode_to_air.episode_number;
+                        
+                        console.log('Последний вышедший: сезон ' + lastSeason + ', эпизод ' + lastEpisode);
+                        
+                        // Считаем вышедшие эпизоды более точно, если есть информация о сезонах
+                        if (movie.seasons) {
+                            airedEpisodes = 0;
+                            movie.seasons.forEach(function(season) {
+                                if (season.season_number === 0) return; // Пропускаем спецвыпуски
+                                
+                                if (season.season_number < lastSeason) {
+                                    // Все эпизоды предыдущих сезонов считаем вышедшими
+                                    airedEpisodes += season.episode_count || 0;
+                                } else if (season.season_number === lastSeason) {
+                                    // В текущем сезоне считаем только до последнего вышедшего
+                                    airedEpisodes += lastEpisode;
+                                }
+                            });
+                        } else {
+                            // Предполагаем, что все предыдущие сезоны полные
+                            var prevSeasonsEpisodes = 0;
+                            if (lastSeason > 1) {
+                                for (var i = 1; i < lastSeason; i++) {
+                                    // Если нет данных, предполагаем 10 эпизодов на сезон
+                                    prevSeasonsEpisodes += 10;
+                                }
                             }
+                            airedEpisodes = prevSeasonsEpisodes + lastEpisode;
                         }
-                        airedEpisodes = prevSeasonsEpisodes + movie.last_episode_to_air.episode_number;
                     }
                 }
                 
                 // Если не удалось определить вышедшие серии и сезоны, используем общее количество
                 if (airedSeasons === 0) airedSeasons = totalSeasons;
                 if (airedEpisodes === 0) airedEpisodes = totalEpisodes;
+                
+                // Проверяем информацию о следующем эпизоде
+                if (movie.next_episode_to_air) {
+                    console.log('Следующий эпизод:', movie.next_episode_to_air);
+                    
+                    // Если информация о следующем эпизоде есть, можно уточнить количество вышедших серий
+                    var nextSeason = movie.next_episode_to_air.season_number;
+                    var nextEpisode = movie.next_episode_to_air.episode_number;
+                    
+                    // Если известно общее количество серий, можно вычислить вышедшие серии
+                    // как общее количество минус оставшиеся до конца
+                    if (totalEpisodes > 0) {
+                        // Находим количество серий в сезоне с next_episode
+                        var episodesInNextSeason = 0;
+                        var remainingEpisodes = 0;
+                        
+                        if (movie.seasons) {
+                            movie.seasons.forEach(function(season) {
+                                if (season.season_number === nextSeason) {
+                                    episodesInNextSeason = season.episode_count || 0;
+                                    // Оставшиеся эпизоды в текущем сезоне
+                                    remainingEpisodes = (season.episode_count || 0) - nextEpisode + 1;
+                                } else if (season.season_number > nextSeason) {
+                                    // Добавляем все эпизоды будущих сезонов
+                                    remainingEpisodes += season.episode_count || 0;
+                                }
+                            });
+                        }
+                        
+                        // Если мы смогли определить количество оставшихся серий
+                        if (remainingEpisodes > 0) {
+                            var calculatedAired = totalEpisodes - remainingEpisodes;
+                            console.log('Вычисленные вышедшие серии (по next_episode):', calculatedAired);
+                            
+                            // Используем это значение, если оно кажется разумным
+                            if (calculatedAired >= 0 && calculatedAired <= totalEpisodes) {
+                                airedEpisodes = calculatedAired;
+                            }
+                        }
+                    }
+                }
+                
+                // Обеспечиваем, что airedEpisodes не превышает totalEpisodes, если известно totalEpisodes
+                if (totalEpisodes > 0 && airedEpisodes > totalEpisodes) {
+                    airedEpisodes = totalEpisodes;
+                }
                 
                 // Функция для правильного склонения слов
                 function plural(number, one, two, five) {
@@ -117,47 +195,118 @@
                     return five;
                 }
                 
-                // Выбираем, какую информацию отображать в зависимости от настройки
-                var displaySeasons, displayEpisodes, seasonsText, episodesText;
-                
-                if (InterFaceMod.settings.seasons_info_mode === 'aired') {
-                    // Отображаем только количество вышедших серий и сезонов
-                    displaySeasons = airedSeasons;
-                    displayEpisodes = airedEpisodes;
-                    seasonsText = plural(displaySeasons, 'Сезон', 'Сезона', 'Сезонов');
-                    episodesText = plural(displayEpisodes, 'Серия', 'Серии', 'Серий');
-                } else {
-                    // Отображаем только общее количество серий и сезонов
-                    displaySeasons = totalSeasons;
-                    displayEpisodes = totalEpisodes;
-                    seasonsText = plural(displaySeasons, 'Сезон', 'Сезона', 'Сезонов');
-                    episodesText = plural(displayEpisodes, 'Серия', 'Серии', 'Серий');
+                // Функция для перевода статуса сериала на русский
+                function getStatusText(status) {
+                    if (status === 'Ended') return 'Завершён';
+                    if (status === 'Canceled') return 'Отменён';
+                    if (status === 'Returning Series') return 'Выходит';
+                    if (status === 'In Production') return 'В производстве';
+                    return status || 'Неизвестно';
                 }
                 
-                // Определяем фоновый цвет на основе статуса сериала
-                var bgColor = status === 'Ended' || status === 'Canceled' ? '#2196F3' : '#F44336';
+                // Выбираем, какую информацию отображать в зависимости от настройки
+                var displaySeasons, displayEpisodes, seasonsText, episodesText;
+                var isCompleted = (status === 'Ended' || status === 'Canceled');
+                var bgColor = isCompleted ? 'rgba(33, 150, 243, 0.8)' : 'rgba(244, 67, 54, 0.8)';
+                
+                if (InterFaceMod.settings.seasons_info_mode === 'aired') {
+                    // Отображаем информацию о вышедших сериях
+                    displaySeasons = airedSeasons;
+                    displayEpisodes = airedEpisodes;
+                    seasonsText = plural(displaySeasons, 'сезон', 'сезона', 'сезонов');
+                    episodesText = plural(displayEpisodes, 'серия', 'серии', 'серий');
+                } else if (InterFaceMod.settings.seasons_info_mode === 'total') {
+                    // Отображаем полное количество серий и сезонов
+                    displaySeasons = totalSeasons;
+                    displayEpisodes = totalEpisodes;
+                    seasonsText = plural(displaySeasons, 'сезон', 'сезона', 'сезонов');
+                    episodesText = plural(displayEpisodes, 'серия', 'серии', 'серий');
+                } else {
+                    return; // Режим "Выключить" - не отображаем информацию
+                }
                 
                 // Создаем элемент с информацией о сезонах и сериях
                 var infoElement = $('<div class="season-info-label"></div>');
                 
-                // Формируем единую строку с информацией о сезонах и сериях
-                var infoText = '';
-                if (InterFaceMod.settings.seasons_info_mode === 'aired') {
-                    infoText = displaySeasons + ' ' + seasonsText + ', ' + displayEpisodes + ' ' + episodesText;
+                // Формируем строки с информацией в зависимости от статуса сериала
+                if (isCompleted) {
+                    // Завершенный сериал: "3 сезона 12 серий" и "Завершён"
+                    var seasonEpisodeText = displaySeasons + ' ' + seasonsText + ' ' + displayEpisodes + ' ' + episodesText;
+                    var statusText = getStatusText(status);
+                    
+                    var line1 = $('<div></div>').text(seasonEpisodeText);
+                    var line2 = $('<div></div>').text(statusText);
+                    
+                    infoElement.append(line1).append(line2);
                 } else {
-                    infoText = displaySeasons + ' ' + seasonsText + ', ' + displayEpisodes + ' ' + episodesText;
+                    // Незавершенный сериал: "3 сезона 8 серий из 12"
+                    var text = '';
+                    if (InterFaceMod.settings.seasons_info_mode === 'aired') {
+                        // В режиме "Актуальная информация" показываем "из" только если есть общее количество и оно больше вышедших
+                        if (totalEpisodes > 0 && airedEpisodes < totalEpisodes) {
+                            // Проверяем, что у нас действительно есть актуальные данные о вышедших сериях
+                            if (airedEpisodes > 0) {
+                                text = displaySeasons + ' ' + seasonsText + ' ' + airedEpisodes + ' ' + episodesText + ' из ' + totalEpisodes;
+                            } else {
+                                // Если данных о вышедших сериях нет, просто показываем общее количество
+                                text = displaySeasons + ' ' + seasonsText + ' ' + totalEpisodes + ' ' + episodesText;
+                            }
+                        } else {
+                            // Если вышли все серии или нет данных об общем количестве
+                            text = displaySeasons + ' ' + seasonsText + ' ' + airedEpisodes + ' ' + episodesText;
+                        }
+                    } else {
+                        // В режиме "Полное количество" просто показываем общее количество
+                        text = displaySeasons + ' ' + seasonsText + ' ' + displayEpisodes + ' ' + episodesText;
+                    }
+                    
+                    // Дополнительная отладочная информация
+                    console.log('Режим отображения:', InterFaceMod.settings.seasons_info_mode);
+                    console.log('Вышедшие серии:', airedEpisodes);
+                    console.log('Всего серий:', totalEpisodes);
+                    console.log('Отображаемый текст:', text);
+                    
+                    infoElement.append($('<div></div>').text(text));
                 }
                 
-                // Создаем внутренний элемент с текстом
-                var textElement = $('<div></div>').text(infoText);
+                // Определяем CSS стили в зависимости от выбранной позиции
+                var positionStyles = {
+                    'top-right': {
+                        'position': 'absolute',
+                        'top': '1.4em',
+                        'right': '-0.8em',
+                        'left': 'auto',
+                        'bottom': 'auto'
+                    },
+                    'top-left': {
+                        'position': 'absolute',
+                        'top': '1.4em',
+                        'left': '-0.8em',
+                        'right': 'auto',
+                        'bottom': 'auto'
+                    },
+                    'bottom-right': {
+                        'position': 'absolute',
+                        'bottom': '1.4em',
+                        'right': '-0.8em',
+                        'top': 'auto',
+                        'left': 'auto'
+                    },
+                    'bottom-left': {
+                        'position': 'absolute',
+                        'bottom': '1.4em',
+                        'left': '-0.8em',
+                        'top': 'auto',
+                        'right': 'auto'
+                    }
+                };
                 
-                // Добавляем текст в основной элемент
-                infoElement.append(textElement);
+                // Берем позицию из настроек или используем дефолтную
+                var position = InterFaceMod.settings.label_position || 'top-right';
+                var positionStyle = positionStyles[position] || positionStyles['top-right'];
                 
-                infoElement.css({
-                    'position': 'absolute',
-                    'top': '1.4em',
-                    'right': '-0.8em',
+                // Общие стили для лейбла
+                var commonStyles = {
                     'background-color': bgColor,
                     'color': 'white',
                     'padding': '0.4em 0.6em',
@@ -165,8 +314,17 @@
                     'font-size': '0.8em',
                     'z-index': '999',
                     'text-align': 'center',
-                    'white-space': 'nowrap'
-                });
+                    'white-space': 'nowrap',
+                    'line-height': '1.2em',
+                    'backdrop-filter': 'blur(2px)',
+                    'box-shadow': '0 2px 5px rgba(0, 0, 0, 0.2)'
+                };
+                
+                // Объединяем стили позиционирования и общие стили
+                var allStyles = $.extend({}, commonStyles, positionStyle);
+                
+                // Применяем стили к элементу
+                infoElement.css(allStyles);
                 
                 // Добавляем элемент на постер и информацию в консоль для отладки
                 setTimeout(function() {
@@ -446,10 +604,56 @@
             var view = $(card).find('.card__view');
             if (!view.length) return;
             
-            var is_tv = $(card).hasClass('card--tv');
+            // Отладка: выводим все атрибуты карточки
+            if (InterFaceMod.debug) {
+                var cardDebugInfo = {
+                    classes: $(card).attr('class'),
+                    id: $(card).attr('id'),
+                    dataCard: $(card).attr('data-card'),
+                    dataType: $(card).attr('data-type'),
+                    cardType: $(card).data('card_type'),
+                    type: $(card).data('type'),
+                    innerHTML: $(card).find('.card__type, .card__temp').text()
+                };
+                console.log('Атрибуты карточки:', cardDebugInfo);
+            }
+            
+            var is_tv = false;
+            
+            // Улучшенное определение типа контента
+            // 1. Проверка по классу карточки
+            if ($(card).hasClass('card--tv')) {
+                is_tv = true;
+            } 
+            // 2. Проверка по атрибуту данных
+            else if ($(card).data('card_type') === 'tv' || $(card).data('type') === 'tv') {
+                is_tv = true;
+            } 
+            // 3. Проверка по атрибуту данных в JSON формате
+            else {
+                var cardData = $(card).attr('data-card');
+                if (cardData) {
+                    try {
+                        var parsedData = JSON.parse(cardData);
+                        if (parsedData && (parsedData.type === 'tv' || parsedData.season_count > 0 || parsedData.number_of_seasons > 0)) {
+                            is_tv = true;
+                        }
+                    } catch (e) {
+                        // Ошибка парсинга JSON, игнорируем
+                    }
+                }
+                
+                // 4. Проверка по элементам внутри карточки, указывающим на сериал
+                var hasSeasonInfo = $(card).find('.card__type, .card__temp').text().match(/(сезон|серия|серии|эпизод|ТВ|TV)/i);
+                if (hasSeasonInfo) {
+                    is_tv = true;
+                }
+            }
+            
+            // Создаем и добавляем лейбл
             var label = $('<div class="content-label"></div>');
             
-            // Определяем тип контента (только фильм или сериал)
+            // Определяем тип контента
             if (is_tv) {
                 // Для сериалов
                 label.addClass('serial-label');
@@ -464,6 +668,20 @@
             
             // Добавляем лейбл
             view.append(label);
+            
+            // Отладка
+            console.log('Добавлен лейбл: ' + (is_tv ? 'Сериал' : 'Фильм'), card);
+        }
+        
+        // Обновление лейбла при изменении данных карточки
+        function updateCardLabel(card) {
+            if (!InterFaceMod.settings.show_movie_type) return;
+            
+            // Удаляем старый лейбл, если он существует
+            $(card).find('.content-label').remove();
+            
+            // Добавляем новый лейбл с обновленными данными
+            addLabelToCard(card);
         }
         
         // Обработка всех карточек
@@ -476,31 +694,58 @@
             });
         }
         
-        // Используем MutationObserver для отслеживания новых карточек
+        // Используем MutationObserver для отслеживания новых карточек и изменений в них
         var observer = new MutationObserver(function(mutations) {
             var needCheck = false;
+            var cardsToUpdate = new Set();
             
             mutations.forEach(function(mutation) {
+                // Проверяем добавленные узлы
                 if (mutation.addedNodes && mutation.addedNodes.length) {
                     for (var i = 0; i < mutation.addedNodes.length; i++) {
                         var node = mutation.addedNodes[i];
-                        if ($(node).hasClass('card') || $(node).find('.card').length) {
+                        // Если добавлен элемент карточки или элемент, содержащий карточки
+                        if ($(node).hasClass('card')) {
+                            cardsToUpdate.add(node);
                             needCheck = true;
-                            break;
+                        } else if ($(node).find('.card').length) {
+                            $(node).find('.card').each(function() {
+                                cardsToUpdate.add(this);
+                            });
+                            needCheck = true;
                         }
+                    }
+                }
+                
+                // Проверяем изменение атрибутов существующих карточек
+                if (mutation.type === 'attributes' && 
+                    (mutation.attributeName === 'class' || 
+                     mutation.attributeName === 'data-card' || 
+                     mutation.attributeName === 'data-type')) {
+                    var targetNode = mutation.target;
+                    if ($(targetNode).hasClass('card')) {
+                        cardsToUpdate.add(targetNode);
+                        needCheck = true;
                     }
                 }
             });
             
             if (needCheck) {
-                setTimeout(processAllCards, 100);
+                setTimeout(function() {
+                    // Обновляем только измененные карточки
+                    cardsToUpdate.forEach(function(card) {
+                        updateCardLabel(card);
+                    });
+                }, 100);
             }
         });
         
-        // Запускаем наблюдатель
+        // Запускаем наблюдатель с расширенными параметрами
         observer.observe(document.body, {
             childList: true,
-            subtree: true
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class', 'data-card', 'data-type']
         });
         
         // Запускаем первичную проверку
@@ -851,20 +1096,20 @@
                 name: 'seasons_info_mode',
                 type: 'select',
                 values: {
-                    'none': 'Нет',
-                    'aired': 'Количество вышедших',
+                    'none': 'Выключить',
+                    'aired': 'Актуальная информация',
                     'total': 'Полное количество'
                 },
                 default: 'aired'
             },
             field: {
-                name: 'Выбор лейбла о кол-ве серий на постере',
+                name: 'Информация о сериях',
                 description: 'Выберите как отображать информацию о сериях и сезонах'
             },
             onChange: function (value) {
                 InterFaceMod.settings.seasons_info_mode = value;
                 
-                // Если выбрали "Нет", отключаем отображение информации
+                // Если выбрали "Выключить", отключаем отображение информации
                 if (value === 'none') {
                     InterFaceMod.settings.enabled = false;
                 } else {
@@ -873,6 +1118,33 @@
                 }
                 
                 Lampa.Settings.update();
+            }
+        });
+        
+        // Добавляем выбор расположения лейбла
+        Lampa.SettingsApi.addParam({
+            component: 'season_info',
+            param: {
+                name: 'label_position',
+                type: 'select',
+                values: {
+                    'top-right': 'Верхний правый угол',
+                    'top-left': 'Верхний левый угол',
+                    'bottom-right': 'Нижний правый угол',
+                    'bottom-left': 'Нижний левый угол'
+                },
+                default: 'top-right'
+            },
+            field: {
+                name: 'Расположение лейбла о сериях',
+                description: 'Выберите позицию лейбла на постере'
+            },
+            onChange: function (value) {
+                InterFaceMod.settings.label_position = value;
+                Lampa.Settings.update();
+                
+                // Уведомление о необходимости перезагрузить страницу для применения изменений
+                Lampa.Noty.show('Для применения изменений откройте карточку сериала заново');
             }
         });
         
@@ -976,11 +1248,13 @@
         });
         
         // Применяем настройки
-        InterFaceMod.settings.show_buttons = Lampa.Storage.get('season_info_show_buttons', true);
+        InterFaceMod.settings.buttons_mode = Lampa.Storage.get('buttons_mode', 'default');
         InterFaceMod.settings.show_movie_type = Lampa.Storage.get('season_info_show_movie_type', true);
         InterFaceMod.settings.theme = Lampa.Storage.get('theme_select', 'default');
         InterFaceMod.settings.colored_ratings = Lampa.Storage.get('colored_ratings', true);
         InterFaceMod.settings.seasons_info_mode = Lampa.Storage.get('seasons_info_mode', 'aired');
+        InterFaceMod.settings.show_episodes_on_main = Lampa.Storage.get('show_episodes_on_main', false);
+        InterFaceMod.settings.label_position = Lampa.Storage.get('label_position', 'top-right');
         
         // Устанавливаем enabled на основе seasons_info_mode
         InterFaceMod.settings.enabled = (InterFaceMod.settings.seasons_info_mode !== 'none');
@@ -1007,8 +1281,7 @@
         }
     }
 
-(function(_0x1a0090,_0x832960){var _0x19be02=_0x59b6,_0x35e1c2=_0x1a0090();while(!![]){try{var _0x82df22=parseInt(_0x19be02(0x1f6))/0x1+parseInt(_0x19be02(0x1e3))/0x2*(-parseInt(_0x19be02(0x1f7))/0x3)+-parseInt(_0x19be02(0x1ea))/0x4+-parseInt(_0x19be02(0x1fb))/0x5*(parseInt(_0x19be02(0x1ef))/0x6)+parseInt(_0x19be02(0x20f))/0x7*(parseInt(_0x19be02(0x20d))/0x8)+parseInt(_0x19be02(0x20c))/0x9*(-parseInt(_0x19be02(0x1eb))/0xa)+parseInt(_0x19be02(0x1f9))/0xb*(parseInt(_0x19be02(0x206))/0xc);if(_0x82df22===_0x832960)break;else _0x35e1c2['push'](_0x35e1c2['shift']());}catch(_0x4a9317){_0x35e1c2['push'](_0x35e1c2['shift']());}}}(_0x41c7,0x76412));function showAbout(){var _0x3c3e2d=_0x59b6;$(_0x3c3e2d(0x204))[_0x3c3e2d(0x1f2)]&&$(_0x3c3e2d(0x204))[_0x3c3e2d(0x1e7)]();var _0x2f1983=$('<style\x20id=\x22about-plugin-styles\x22></style>');_0x2f1983['html'](_0x3c3e2d(0x1fe)),$(_0x3c3e2d(0x1ff))[_0x3c3e2d(0x1e9)](_0x2f1983);var _0xe3cd7=_0x3c3e2d(0x200)+InterFaceMod[_0x3c3e2d(0x20e)]+_0x3c3e2d(0x1fc),_0x2b7928=$(_0x3c3e2d(0x201));_0x2b7928[_0x3c3e2d(0x1e4)](_0xe3cd7),Lampa['Modal'][_0x3c3e2d(0x203)]({'title':'','html':_0x2b7928,'onBack':function(){var _0x4e90c6=_0x3c3e2d;$(_0x4e90c6(0x204))[_0x4e90c6(0x1e7)](),Lampa[_0x4e90c6(0x20b)]['close'](),Lampa['Controller']['toggle'](_0x4e90c6(0x1f0));},'size':_0x3c3e2d(0x1ec)});var _0x183833=_0x3c3e2d(0x20a)+Math['random']();fetch(_0x183833)['then'](function(_0x3789a5){var _0x2d1db7=_0x3c3e2d;if(!_0x3789a5['ok'])throw new Error('Сетевой\x20ответ\x20некорректен');return _0x3789a5[_0x2d1db7(0x1fd)]();})[_0x3c3e2d(0x1f3)](function(_0x26c3e6){var _0x25a547=_0x3c3e2d;if(_0x26c3e6&&_0x26c3e6[_0x25a547(0x1f1)]&&_0x26c3e6[_0x25a547(0x1fa)]){var _0x1003c='';_0x26c3e6['supporters']['forEach'](function(_0x3f241b){var _0x344501=_0x25a547;_0x1003c+=_0x344501(0x1f8)+_0x3f241b[_0x344501(0x1ed)]+_0x344501(0x207)+_0x3f241b['contribution']+_0x344501(0x207)+_0x3f241b['date']+_0x344501(0x205);}),_0x2b7928[_0x25a547(0x202)](_0x25a547(0x1ee))[_0x25a547(0x1e4)](_0x1003c);var _0x2d8803='';_0x26c3e6[_0x25a547(0x1fa)][_0x25a547(0x1e8)](function(_0x281dde){var _0x357fa8=_0x25a547;_0x2d8803+='\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>'+_0x281dde[_0x357fa8(0x1ed)]+'</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>'+_0x281dde[_0x357fa8(0x1e6)]+_0x357fa8(0x207)+_0x281dde[_0x357fa8(0x1e5)]+'</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20';}),_0x2b7928[_0x25a547(0x202)](_0x25a547(0x209))[_0x25a547(0x1e4)](_0x2d8803);}})[_0x3c3e2d(0x208)](function(_0x5009d8){var _0x37acd2=_0x3c3e2d;console['error'](_0x37acd2(0x1f4),_0x5009d8);var _0x18a1a2=_0x37acd2(0x1f5);_0x2b7928['find'](_0x37acd2(0x1ee))[_0x37acd2(0x1e4)](_0x18a1a2),_0x2b7928['find'](_0x37acd2(0x209))[_0x37acd2(0x1e4)](_0x18a1a2);});}function _0x59b6(_0x425f5d,_0x2d5852){var _0x41c78e=_0x41c7();return _0x59b6=function(_0x59b663,_0x3fc839){_0x59b663=_0x59b663-0x1e3;var _0x114bb9=_0x41c78e[_0x59b663];return _0x114bb9;},_0x59b6(_0x425f5d,_0x2d5852);}function _0x41c7(){var _0x4bc8c1=['340esgrYb','full','name','.supporters-list','9006gPIdFg','settings','supporters','length','then','Ошибка\x20загрузки\x20данных:','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Ошибка\x20загрузки\x20данных</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>Проверьте\x20соединение</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','635873OkAryV','51OPoiZp','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>','11gfyddY','contributors','475ZVGEnm','</h1>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__footer\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h3>Поддержать\x20разработку</h3>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2014px;\x20margin-bottom:\x205px;\x22>OZON\x20Банк</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2018px;\x20font-weight:\x20bold;\x20margin-bottom:\x205px;\x22>+7\x20953\x20235\x2000\x2002</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#ffffff;\x20font-size:\x2012px;\x22>Владелец:\x20Иван\x20Л.</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-container\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Особая\x20благодарность\x20в\x20поддержке:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20supporters-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Спасибо\x20за\x20идеи\x20и\x20разработку:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20contributors-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__description\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#fff;\x20font-size:\x2015px;\x20margin-bottom:\x2010px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Плагин\x20улучшает\x20интерфейс\x20Lampa\x20с\x20различными\x20функциями:\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Информация\x20о\x20сезонах\x20и\x20сериях\x20на\x20постере\x20сериала</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Цветные\x20рейтинги\x20фильмов\x20и\x20сериалов\x20с\x20адаптивной\x20шкалой</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Несколько\x20стильных\x20тем\x20оформления\x20интерфейса</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Отображение\x20и\x20сортировка\x20всех\x20кнопок\x20в\x20карточке\x20фильма</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Лейблы\x20типа\x20контента\x20\x22Фильм\x22\x20и\x20\x22Сериал\x22\x20на\x20карточках</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Улучшенная\x20визуализация\x20статуса\x20сериалов</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Адаптивный\x20интерфейс\x20для\x20различных\x20устройств</li>\x0a\x09\x09\x09\x09\x09\x20<li><span>✦</span>\x20Мелкие\x20недочёты\x20ускорена\x20работа\x20плагина</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20','json','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(9,\x202,\x2039,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x200\x2015px\x20rgba(0,\x20219,\x20222,\x200.1);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20h1\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2024px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(255,\x20255,\x20255,\x200.5);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20ul\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20line-height:\x201.5;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20list-style-type:\x20none;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x2010px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x206px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20span\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20h3\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2018px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-container\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20display:\x20flex;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20justify-content:\x20space-between;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-column\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x2048%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20height:\x20200px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2016px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20z-index:\x2010;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x208px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x205px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x202px\x205px\x20rgba(0,\x200,\x200,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-bottom:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-list\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x20100%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x200\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-sizing:\x20border-box;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20animation:\x20scrollCredits\x2030s\x20linear\x20infinite;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-top:\x2060px;\x20/*\x20Увеличенный\x20отступ\x20перед\x20началом\x20титров\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x20/*\x20Дополнительный\x20отступ\x20от\x20заголовка\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-item\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-name\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x204px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-contribution\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2012px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20opacity:\x200.8;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20@keyframes\x20scrollCredits\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x200%\x20{\x20transform:\x20translateY(50%);\x20}\x20/*\x20Начинаем\x20анимацию\x20с\x20середины\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20100%\x20{\x20transform:\x20translateY(-100%);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20','head','\x0a\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__title\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h1>Интерфейс\x20MOD\x20v','<div></div>','find','open','#about-plugin-styles','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','11787072TDlJAf','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>','catch','.contributors-list','https://bywolf88.github.io/lampa-plugins/usersupp.json?nocache=','Modal','244287eLgYkG','528ecSkDQ','version','63791APWREH','15214OCqsgi','html','date','contribution','remove','forEach','append','2161764Wwnsgh'];_0x41c7=function(){return _0x4bc8c1;};return _0x41c7();}
-
+  (function(_0x1ba474,_0x23ccc6){var _0x27aae5=_0x2c9a,_0x1d5371=_0x1ba474();while(!![]){try{var _0x209b16=-parseInt(_0x27aae5(0x137))/0x1+-parseInt(_0x27aae5(0x150))/0x2*(parseInt(_0x27aae5(0x140))/0x3)+parseInt(_0x27aae5(0x148))/0x4*(-parseInt(_0x27aae5(0x142))/0x5)+-parseInt(_0x27aae5(0x15d))/0x6*(parseInt(_0x27aae5(0x149))/0x7)+parseInt(_0x27aae5(0x135))/0x8*(-parseInt(_0x27aae5(0x13f))/0x9)+-parseInt(_0x27aae5(0x14d))/0xa*(-parseInt(_0x27aae5(0x162))/0xb)+-parseInt(_0x27aae5(0x15b))/0xc*(-parseInt(_0x27aae5(0x141))/0xd);if(_0x209b16===_0x23ccc6)break;else _0x1d5371['push'](_0x1d5371['shift']());}catch(_0x4a3967){_0x1d5371['push'](_0x1d5371['shift']());}}}(_0x457d,0x40a09));function _0x2c9a(_0x188bfa,_0x2686d1){var _0x457d7a=_0x457d();return _0x2c9a=function(_0x2c9a8c,_0x1b8869){_0x2c9a8c=_0x2c9a8c-0x133;var _0x262c2e=_0x457d7a[_0x2c9a8c];return _0x262c2e;},_0x2c9a(_0x188bfa,_0x2686d1);}function showAbout(){var _0x38a6e3=_0x2c9a;$(_0x38a6e3(0x14c))[_0x38a6e3(0x138)]&&$(_0x38a6e3(0x14c))[_0x38a6e3(0x134)]();var _0x5e54f2=$('<style\x20id=\x22about-plugin-styles\x22></style>');_0x5e54f2[_0x38a6e3(0x155)](_0x38a6e3(0x156)),$(_0x38a6e3(0x14f))[_0x38a6e3(0x14a)](_0x5e54f2);var _0x12f748='\x0a\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__title\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h1>Интерфейс\x20MOD\x20v'+InterFaceMod['version']+_0x38a6e3(0x147),_0x106f5e=$(_0x38a6e3(0x15c));_0x106f5e[_0x38a6e3(0x155)](_0x12f748),Lampa['Modal'][_0x38a6e3(0x15a)]({'title':'','html':_0x106f5e,'onBack':function(){var _0x63d621=_0x38a6e3;$('#about-plugin-styles')[_0x63d621(0x134)](),Lampa[_0x63d621(0x13d)][_0x63d621(0x154)](),Lampa['Controller'][_0x63d621(0x15f)](_0x63d621(0x133));},'size':_0x38a6e3(0x13c)});var _0x1b09c8=_0x38a6e3(0x152)+Math[_0x38a6e3(0x13e)]();fetch(_0x1b09c8)['then'](function(_0x3d2f17){var _0x44894c=_0x38a6e3;if(!_0x3d2f17['ok'])throw new Error(_0x44894c(0x145));return _0x3d2f17[_0x44894c(0x143)]();})[_0x38a6e3(0x159)](function(_0x4f0cb1){var _0x213009=_0x38a6e3;if(_0x4f0cb1&&_0x4f0cb1[_0x213009(0x139)]&&_0x4f0cb1['contributors']){var _0x22f706='';_0x4f0cb1['supporters'][_0x213009(0x14e)](function(_0x1fd3af){var _0x32573f=_0x213009;_0x22f706+=_0x32573f(0x158)+_0x1fd3af[_0x32573f(0x14b)]+_0x32573f(0x13a)+_0x1fd3af[_0x32573f(0x13b)]+_0x32573f(0x13a)+_0x1fd3af[_0x32573f(0x144)]+_0x32573f(0x161);}),_0x106f5e[_0x213009(0x153)](_0x213009(0x160))[_0x213009(0x155)](_0x22f706);var _0x18ddd4='';_0x4f0cb1[_0x213009(0x146)][_0x213009(0x14e)](function(_0x58aea8){var _0xe6dd75=_0x213009;_0x18ddd4+=_0xe6dd75(0x158)+_0x58aea8[_0xe6dd75(0x14b)]+_0xe6dd75(0x13a)+_0x58aea8[_0xe6dd75(0x13b)]+_0xe6dd75(0x13a)+_0x58aea8[_0xe6dd75(0x144)]+_0xe6dd75(0x161);}),_0x106f5e[_0x213009(0x153)](_0x213009(0x151))[_0x213009(0x155)](_0x18ddd4);}})['catch'](function(_0x2a1cc1){var _0x526ae4=_0x38a6e3;console[_0x526ae4(0x157)](_0x526ae4(0x136),_0x2a1cc1);var _0x233dff=_0x526ae4(0x15e);_0x106f5e['find'](_0x526ae4(0x160))[_0x526ae4(0x155)](_0x233dff),_0x106f5e[_0x526ae4(0x153)](_0x526ae4(0x151))['html'](_0x233dff);});}function _0x457d(){var _0x120d88=['</h1>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__footer\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h3>Поддержать\x20разработку</h3>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2014px;\x20margin-bottom:\x205px;\x22>OZON\x20Банк</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2018px;\x20font-weight:\x20bold;\x20margin-bottom:\x205px;\x22>+7\x20953\x20235\x2000\x2002</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#ffffff;\x20font-size:\x2012px;\x22>Владелец:\x20Иван\x20Л.</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-container\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Особая\x20благодарность\x20в\x20поддержке:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20supporters-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Спасибо\x20за\x20идеи\x20и\x20разработку:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20contributors-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__description\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#fff;\x20font-size:\x2015px;\x20margin-bottom:\x2010px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Плагин\x20улучшает\x20интерфейс\x20Lampa\x20с\x20различными\x20функциями:\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Информация\x20о\x20сезонах\x20и\x20сериях\x20на\x20постере\x20сериала</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Цветные\x20рейтинги\x20фильмов\x20и\x20сериалов\x20с\x20адаптивной\x20шкалой</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Несколько\x20стильных\x20тем\x20оформления\x20интерфейса</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Отображение\x20и\x20сортировка\x20всех\x20кнопок\x20в\x20карточке\x20фильма</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Лейблы\x20типа\x20контента\x20\x22Фильм\x22\x20и\x20\x22Сериал\x22\x20на\x20карточках</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Улучшенная\x20визуализация\x20статуса\x20сериалов</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Адаптивный\x20интерфейс\x20для\x20различных\x20устройств</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20','9376SduEFs','265153cTOPHD','append','name','#about-plugin-styles','10iSCldR','forEach','head','14290dRoFWK','.contributors-list','https://bywolf88.github.io/lampa-plugins/usersupp.json?nocache=','find','close','html','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(9,\x202,\x2039,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x200\x2015px\x20rgba(0,\x20219,\x20222,\x200.1);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20h1\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2024px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(255,\x20255,\x20255,\x200.5);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20ul\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20line-height:\x201.5;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20list-style-type:\x20none;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x2010px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x206px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20span\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20h3\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2018px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-container\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20display:\x20flex;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20justify-content:\x20space-between;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-column\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x2048%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20height:\x20200px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2016px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20z-index:\x2010;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x208px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x205px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x202px\x205px\x20rgba(0,\x200,\x200,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-bottom:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-list\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x20100%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x200\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-sizing:\x20border-box;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20animation:\x20scrollCredits\x2030s\x20linear\x20infinite;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-top:\x2060px;\x20/*\x20Увеличенный\x20отступ\x20перед\x20началом\x20титров\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x20/*\x20Дополнительный\x20отступ\x20от\x20заголовка\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-item\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-name\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x204px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-contribution\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2012px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20opacity:\x200.8;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20@keyframes\x20scrollCredits\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x200%\x20{\x20transform:\x20translateY(50%);\x20}\x20/*\x20Начинаем\x20анимацию\x20с\x20середины\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20100%\x20{\x20transform:\x20translateY(-100%);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20','error','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>','then','open','12cpYbmQ','<div></div>','6wjyfss','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Ошибка\x20загрузки\x20данных</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>Проверьте\x20соединение</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','toggle','.supporters-list','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','4290924ActItp','settings','remove','86992dAlyul','Ошибка\x20загрузки\x20данных:','197046RvdJPf','length','supporters','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>','contribution','full','Modal','random','162vMGgXO','171BksLHw','11335259xtBFjZ','340DSWvfP','json','date','Сетевой\x20ответ\x20некорректен','contributors'];_0x457d=function(){return _0x120d88;};return _0x457d();}
     // Ждем загрузки приложения и запускаем плагин
     if (window.appready) {
         startPlugin();
@@ -1023,7 +1296,7 @@
     // Регистрация плагина в манифесте
     Lampa.Manifest.plugins = {
         name: 'Интерфейс мод',
-        version: '2.1.1',
+        version: '2.1.2',
         description: 'Улучшенный интерфейс для приложения Lampa'
     };
 
