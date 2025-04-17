@@ -6,7 +6,7 @@
         // Название плагина
         name: 'interface_mod',
         // Версия плагина
-        version: '2.1.2',
+        version: '2.2.0',
         // Включить отладку
         debug: false,
         // Настройки по умолчанию
@@ -18,7 +18,9 @@
             colored_ratings: true,
             seasons_info_mode: 'aired',
             show_episodes_on_main: false,
-            label_position: 'top-right' // 'top-right', 'top-left', 'bottom-right', 'bottom-left'
+            label_position: 'top-right', // 'top-right', 'top-left', 'bottom-right', 'bottom-left'
+            show_buttons: true,
+            colored_elements: true // Объединенная настройка для статусов и возрастных ограничений
         }
     };
 
@@ -385,22 +387,44 @@
                     var element = activity.render();
                     if (!element) return;
                     
-                    // Находим контейнеры для кнопок
+                    // Находим контейнеры для кнопок (поддержка различных версий Lampa)
                     var targetContainer = element.find('.full-start-new__buttons');
                     if (!targetContainer.length) {
                         targetContainer = element.find('.full-start__buttons');
                     }
+                    if (!targetContainer.length) {
+                        // Расширенный поиск контейнеров кнопок
+                        targetContainer = element.find('.buttons-container');
+                    }
                     if (!targetContainer.length) return;
+                    
+                    console.log('InterfaceMod: Найден контейнер для кнопок', targetContainer);
                     
                     // Находим все кнопки из разных контейнеров
                     var allButtons = [];
-                    element.find('.buttons--container .full-start__button').each(function() {
-                        allButtons.push(this);
+                    
+                    // Поиск кнопок в различных контейнерах (поддержка различных версий Lampa)
+                    var buttonSelectors = [
+                        '.buttons--container .full-start__button',
+                        '.full-start-new__buttons .full-start__button', 
+                        '.full-start__buttons .full-start__button',
+                        '.buttons-container .button',
+                        '.full-start-new__buttons .button',
+                        '.full-start__buttons .button'
+                    ];
+                    
+                    buttonSelectors.forEach(function(selector) {
+                        element.find(selector).each(function() {
+                            allButtons.push(this);
+                        });
                     });
                     
-                    element.find('.full-start-new__buttons .full-start__button, .full-start__buttons .full-start__button').each(function() {
-                        allButtons.push(this);
-                    });
+                    if (allButtons.length === 0) {
+                        console.log('InterfaceMod: Не найдены кнопки для организации');
+                        return;
+                    }
+                    
+                    console.log('InterfaceMod: Найдено кнопок:', allButtons.length);
                     
                     // Категории кнопок
                     var categories = {
@@ -433,6 +457,8 @@
                         } else {
                             categories.other.push(button);
                         }
+                        
+                        console.log('InterfaceMod: Обработана кнопка:', buttonText, className);
                     });
                     
                     // Порядок кнопок
@@ -445,6 +471,13 @@
                     // Сохраняем оригинальные элементы с событиями
                     var originalElements = targetContainer.children().detach();
                     
+                    // Применяем стили для контейнера
+                    targetContainer.css({
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                    });
+                    
                     // Добавляем кнопки в порядке категорий
                     buttonSortOrder.forEach(function(category) {
                         categories[category].forEach(function(button) {
@@ -456,16 +489,17 @@
                     if (needToggle) {
                         setTimeout(function() {
                             Lampa.Controller.toggle('full_start');
-                        }, 50);
+                        }, 100);
                     }
                 };
                 
                 // Вызываем организацию кнопок при готовности карточки
                 card.onCreate = function() {
+                    // Проверяем, включена ли опция показа кнопок
                     if (InterFaceMod.settings.show_buttons) {
                         setTimeout(function() {
                             card.organizeButtons();
-                        }, 100);
+                        }, 300); // Увеличиваем таймаут для лучшей совместимости
                     }
                 };
                 
@@ -476,6 +510,7 @@
         // Для совместимости, также перехватываем событие создания карточки
         Lampa.Listener.follow('full', function(e) {
             if (e.type === 'complite' && e.object && e.object.activity) {
+                // Проверяем, включена ли опция показа кнопок
                 if (InterFaceMod.settings.show_buttons && !Lampa.FullCard) {
                     setTimeout(function() {
                         var fullContainer = e.object.activity.render();
@@ -483,7 +518,12 @@
                         if (!targetContainer.length) {
                             targetContainer = fullContainer.find('.full-start__buttons');
                         }
+                        if (!targetContainer.length) {
+                            targetContainer = fullContainer.find('.buttons-container');
+                        }
                         if (!targetContainer.length) return;
+                        
+                        console.log('InterfaceMod: Найден контейнер для кнопок (listener)', targetContainer);
                         
                         // Применяем стили для контейнера
                         targetContainer.css({
@@ -494,13 +534,29 @@
                         
                         // Остальной код аналогичен тому, что был выше
                         var allButtons = [];
-                        fullContainer.find('.buttons--container .full-start__button').each(function() {
-                            allButtons.push(this);
+                        
+                        // Расширенный поиск кнопок
+                        var buttonSelectors = [
+                            '.buttons--container .full-start__button',
+                            '.full-start-new__buttons .full-start__button', 
+                            '.full-start__buttons .full-start__button',
+                            '.buttons-container .button',
+                            '.full-start-new__buttons .button',
+                            '.full-start__buttons .button'
+                        ];
+                        
+                        buttonSelectors.forEach(function(selector) {
+                            fullContainer.find(selector).each(function() {
+                                allButtons.push(this);
+                            });
                         });
                         
-                        fullContainer.find('.full-start-new__buttons .full-start__button, .full-start__buttons .full-start__button').each(function() {
-                            allButtons.push(this);
-                        });
+                        if (allButtons.length === 0) {
+                            console.log('InterfaceMod: Не найдены кнопки для организации (listener)');
+                            return;
+                        }
+                        
+                        console.log('InterfaceMod: Найдено кнопок (listener):', allButtons.length);
                         
                         var categories = {
                             online: [],
@@ -546,11 +602,42 @@
                         if (needToggle) {
                             setTimeout(function() {
                                 Lampa.Controller.toggle('full_start');
-                            }, 50);
+                            }, 100);
                         }
-                    }, 100);
+                    }, 300); // Увеличиваем таймаут
                 }
             }
+        });
+        
+        // Добавляем MutationObserver для отслеживания динамически добавляемых кнопок
+        var buttonObserver = new MutationObserver(function(mutations) {
+            if (!InterFaceMod.settings.show_buttons) return;
+            
+            let needReorganize = false;
+            
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList' && 
+                    (mutation.target.classList.contains('full-start-new__buttons') || 
+                     mutation.target.classList.contains('full-start__buttons') ||
+                     mutation.target.classList.contains('buttons-container'))) {
+                    needReorganize = true;
+                }
+            });
+            
+            if (needReorganize) {
+                setTimeout(function() {
+                    if (Lampa.FullCard && Lampa.Activity.active() && Lampa.Activity.active().activity.card) {
+                        if (typeof Lampa.Activity.active().activity.card.organizeButtons === 'function') {
+                            Lampa.Activity.active().activity.card.organizeButtons();
+                        }
+                    }
+                }, 100);
+            }
+        });
+        
+        buttonObserver.observe(document.body, {
+            childList: true,
+            subtree: true
         });
     }
 
@@ -604,49 +691,101 @@
             var view = $(card).find('.card__view');
             if (!view.length) return;
             
-            // Отладка: выводим все атрибуты карточки
-            if (InterFaceMod.debug) {
-                var cardDebugInfo = {
-                    classes: $(card).attr('class'),
-                    id: $(card).attr('id'),
-                    dataCard: $(card).attr('data-card'),
-                    dataType: $(card).attr('data-type'),
-                    cardType: $(card).data('card_type'),
-                    type: $(card).data('type'),
-                    innerHTML: $(card).find('.card__type, .card__temp').text()
-                };
-                console.log('Атрибуты карточки:', cardDebugInfo);
-            }
-            
+            // Расширенное определение типа контента на основе метаданных
             var is_tv = false;
+            var metadata = {};
+            var movie_data = null;
             
-            // Улучшенное определение типа контента
-            // 1. Проверка по классу карточки
-            if ($(card).hasClass('card--tv')) {
-                is_tv = true;
-            } 
-            // 2. Проверка по атрибуту данных
-            else if ($(card).data('card_type') === 'tv' || $(card).data('type') === 'tv') {
-                is_tv = true;
-            } 
-            // 3. Проверка по атрибуту данных в JSON формате
-            else {
+            // Попытаемся получить все возможные метаданные
+            try {
+                // 1. Проверяем встроенные данные карточки
                 var cardData = $(card).attr('data-card');
                 if (cardData) {
                     try {
-                        var parsedData = JSON.parse(cardData);
-                        if (parsedData && (parsedData.type === 'tv' || parsedData.season_count > 0 || parsedData.number_of_seasons > 0)) {
-                            is_tv = true;
-                        }
+                        metadata = JSON.parse(cardData);
+                        console.log('Метаданные из data-card:', metadata);
                     } catch (e) {
-                        // Ошибка парсинга JSON, игнорируем
+                        console.error('Ошибка парсинга data-card:', e);
                     }
                 }
                 
-                // 4. Проверка по элементам внутри карточки, указывающим на сериал
-                var hasSeasonInfo = $(card).find('.card__type, .card__temp').text().match(/(сезон|серия|серии|эпизод|ТВ|TV)/i);
-                if (hasSeasonInfo) {
+                // 2. Проверяем привязанные данные jQuery
+                var jqData = $(card).data();
+                if (jqData && Object.keys(jqData).length > 0) {
+                    metadata = { ...metadata, ...jqData };
+                    console.log('Метаданные из jQuery data():', jqData);
+                }
+                
+                // 3. Проверка доступа к данным через API Lampa
+                if (Lampa.Card && $(card).attr('id')) {
+                    var cardId = $(card).attr('id');
+                    var cardObj = Lampa.Card.get(cardId);
+                    if (cardObj) {
+                        metadata = { ...metadata, ...cardObj };
+                        console.log('Метаданные из Lampa.Card:', cardObj);
+                    }
+                }
+                
+                // 4. Пытаемся получить данные из Lampa.Storage.cache
+                if (Lampa.Storage && Lampa.Storage.cache) {
+                    var itemId = $(card).data('id') || $(card).attr('data-id') || (metadata ? metadata.id : null);
+                    if (itemId && Lampa.Storage.cache('card_' + itemId)) {
+                        var cachedData = Lampa.Storage.cache('card_' + itemId);
+                        if (cachedData) {
+                            metadata = { ...metadata, ...cachedData };
+                            console.log('Метаданные из Lampa.Storage.cache:', cachedData);
+                        }
+                    }
+                }
+                
+                // Компиляция всех метаданных
+                movie_data = metadata;
+                
+                // Отладка собранных метаданных
+                if (InterFaceMod.debug) {
+                    console.log('Собранные метаданные для карточки:', movie_data);
+                }
+            } catch (e) {
+                console.error('Ошибка при получении метаданных:', e);
+            }
+            
+            // Логика определения типа контента по метаданным
+            if (movie_data) {
+                // Приоритет 1: Прямое указание типа
+                if (movie_data.type === 'tv' || movie_data.type === 'serial' || 
+                    movie_data.card_type === 'tv' || movie_data.card_type === 'serial') {
                     is_tv = true;
+                }
+                // Приоритет 2: Наличие информации о сезонах
+                else if (movie_data.seasons || movie_data.number_of_seasons > 0 || 
+                        movie_data.season_count > 0 || movie_data.seasons_count > 0) {
+                    is_tv = true;
+                }
+                // Приоритет 3: Наличие списка эпизодов
+                else if (movie_data.episodes || movie_data.number_of_episodes > 0 || 
+                        movie_data.episodes_count > 0) {
+                    is_tv = true;
+                } 
+                // Приоритет 4: Наличие отметки о сериале
+                else if (movie_data.isSeries === true || movie_data.is_series === true || 
+                        movie_data.isSerial === true || movie_data.is_serial === true) {
+                    is_tv = true;
+                }
+            }
+            
+            // Если через метаданные не определили, используем классы и структуру DOM
+            if (!is_tv) {
+                // Проверка по классу карточки
+                if ($(card).hasClass('card--tv')) {
+                    is_tv = true;
+                } else if ($(card).data('card_type') === 'tv' || $(card).data('type') === 'tv') {
+                    is_tv = true;
+                } else {
+                    // Проверка по элементам внутри карточки
+                    var hasSeasonInfo = $(card).find('.card__type, .card__temp').text().match(/(сезон|серия|серии|эпизод|ТВ|TV)/i);
+                    if (hasSeasonInfo) {
+                        is_tv = true;
+                    }
                 }
             }
             
@@ -670,7 +809,9 @@
             view.append(label);
             
             // Отладка
-            console.log('Добавлен лейбл: ' + (is_tv ? 'Сериал' : 'Фильм'), card);
+            if (InterFaceMod.debug) {
+                console.log('Добавлен лейбл: ' + (is_tv ? 'Сериал' : 'Фильм'), card);
+            }
         }
         
         // Обновление лейбла при изменении данных карточки
@@ -693,6 +834,58 @@
                 addLabelToCard(this);
             });
         }
+        
+        // Дополнительный слушатель для карточек в детальном представлении
+        Lampa.Listener.follow('full', function(data) {
+            if (data.type === 'complite' && data.data.movie) {
+                // Дополнительная логика для определения типа контента в полном представлении
+                var movie = data.data.movie;
+                var posterContainer = $(data.object.activity.render()).find('.full-start__poster');
+                
+                if (posterContainer.length && movie) {
+                    var is_tv = false;
+                    
+                    // Определяем тип контента по данным
+                    if (movie.number_of_seasons > 0 || movie.seasons || movie.season_count > 0) {
+                        is_tv = true;
+                    } else if (movie.type === 'tv' || movie.card_type === 'tv') {
+                        is_tv = true;
+                    }
+                    
+                    // Проверяем, нужно ли добавить лейбл в полное представление
+                    if (InterFaceMod.settings.show_movie_type) {
+                        var existingLabel = posterContainer.find('.content-label');
+                        if (existingLabel.length) {
+                            existingLabel.remove();
+                        }
+                        
+                        var label = $('<div class="content-label"></div>').css({
+                            'position': 'absolute',
+                            'top': '1.4em',
+                            'left': '-0.8em',
+                            'color': 'white',
+                            'padding': '0.4em 0.4em',
+                            'border-radius': '0.3em',
+                            'font-size': '0.8em',
+                            'z-index': '10'
+                        });
+                        
+                        if (is_tv) {
+                            label.addClass('serial-label');
+                            label.text('Сериал');
+                            label.css('background-color', '#3498db');
+                        } else {
+                            label.addClass('movie-label');
+                            label.text('Фильм');
+                            label.css('background-color', '#2ecc71');
+                        }
+                        
+                        posterContainer.css('position', 'relative');
+                        posterContainer.append(label);
+                    }
+                }
+            }
+        });
         
         // Используем MutationObserver для отслеживания новых карточек и изменений в них
         var observer = new MutationObserver(function(mutations) {
@@ -827,6 +1020,100 @@
                 .modal__content {
                     background: rgba(15, 2, 33, 0.95);
                     border: 1px solid rgba(255, 0, 255, 0.1);
+                }
+            `,
+            dark_night: `
+                body {
+                    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+                    color: #ffffff;
+                }
+                .menu__item.focus,
+                .menu__item.traverse,
+                .menu__item.hover,
+                .settings-folder.focus,
+                .settings-param.focus,
+                .selectbox-item.focus,
+                .full-start__button.focus,
+                .full-descr__tag.focus,
+                .player-panel .button.focus {
+                    background: linear-gradient(to right, #8a2387, #e94057, #f27121);
+                    color: #fff;
+                    box-shadow: 0 0 30px rgba(233, 64, 87, 0.3);
+                    animation: night-pulse 2s infinite;
+                }
+                @keyframes night-pulse {
+                    0% { box-shadow: 0 0 20px rgba(233, 64, 87, 0.3); }
+                    50% { box-shadow: 0 0 30px rgba(242, 113, 33, 0.3); }
+                    100% { box-shadow: 0 0 20px rgba(138, 35, 135, 0.3); }
+                }
+                .card.focus .card__view::after,
+                .card.hover .card__view::after {
+                    border: 2px solid #e94057;
+                    box-shadow: 0 0 30px rgba(242, 113, 33, 0.5);
+                }
+                .head__action.focus,
+                .head__action.hover {
+                    background: linear-gradient(45deg, #8a2387, #f27121);
+                    animation: night-pulse 2s infinite;
+                }
+                .full-start__background {
+                    opacity: 0.8;
+                    filter: saturate(1.3) contrast(1.1);
+                }
+                .settings__content,
+                .settings-input__content,
+                .selectbox__content,
+                .modal__content {
+                    background: rgba(10, 10, 10, 0.95);
+                    border: 1px solid rgba(233, 64, 87, 0.1);
+                    box-shadow: 0 0 30px rgba(242, 113, 33, 0.1);
+                }
+            `,
+            blue_cosmos: `
+                body {
+                    background: linear-gradient(135deg, #0b365c 0%, #144d80 50%, #0c2a4d 100%);
+                    color: #ffffff;
+                }
+                .menu__item.focus,
+                .menu__item.traverse,
+                .menu__item.hover,
+                .settings-folder.focus,
+                .settings-param.focus,
+                .selectbox-item.focus,
+                .full-start__button.focus,
+                .full-descr__tag.focus,
+                .player-panel .button.focus {
+                    background: linear-gradient(to right, #12c2e9, #c471ed, #f64f59);
+                    color: #fff;
+                    box-shadow: 0 0 30px rgba(18, 194, 233, 0.3);
+                    animation: cosmos-pulse 2s infinite;
+                }
+                @keyframes cosmos-pulse {
+                    0% { box-shadow: 0 0 20px rgba(18, 194, 233, 0.3); }
+                    50% { box-shadow: 0 0 30px rgba(196, 113, 237, 0.3); }
+                    100% { box-shadow: 0 0 20px rgba(246, 79, 89, 0.3); }
+                }
+                .card.focus .card__view::after,
+                .card.hover .card__view::after {
+                    border: 2px solid #12c2e9;
+                    box-shadow: 0 0 30px rgba(196, 113, 237, 0.5);
+                }
+                .head__action.focus,
+                .head__action.hover {
+                    background: linear-gradient(45deg, #12c2e9, #f64f59);
+                    animation: cosmos-pulse 2s infinite;
+                }
+                .full-start__background {
+                    opacity: 0.8;
+                    filter: saturate(1.3) contrast(1.1);
+                }
+                .settings__content,
+                .settings-input__content,
+                .selectbox__content,
+                .modal__content {
+                    background: rgba(11, 54, 92, 0.95);
+                    border: 1px solid rgba(18, 194, 233, 0.1);
+                    box-shadow: 0 0 30px rgba(196, 113, 237, 0.1);
                 }
             `,
             sunset: `
@@ -1066,6 +1353,265 @@
         });
     }
 
+    // Функция для изменения цвета статусов сериалов
+    function colorizeSeriesStatus() {
+        if (!InterFaceMod.settings.colored_elements) return;
+        
+        // Функция для применения цвета к статусу
+        function applyStatusColor(statusElement) {
+            var statusText = $(statusElement).text().trim();
+            
+            // Цвета для разных статусов с текстовым цветом
+            var statusColors = {
+                'completed': {
+                    bg: 'rgba(46, 204, 113, 0.8)', // Зеленый с прозрачностью
+                    text: 'white'
+                },
+                'canceled': {
+                    bg: 'rgba(231, 76, 60, 0.8)', // Красный с прозрачностью
+                    text: 'white'
+                },
+                'ongoing': {
+                    bg: 'rgba(243, 156, 18, 0.8)', // Желтый/Оранжевый с прозрачностью
+                    text: 'black'
+                },
+                'production': {
+                    bg: 'rgba(52, 152, 219, 0.8)', // Синий с прозрачностью
+                    text: 'white'
+                },
+                'planned': {
+                    bg: 'rgba(155, 89, 182, 0.8)', // Фиолетовый с прозрачностью
+                    text: 'white'
+                },
+                'pilot': {
+                    bg: 'rgba(230, 126, 34, 0.8)', // Оранжевый с прозрачностью
+                    text: 'white'
+                },
+                'released': {
+                    bg: 'rgba(26, 188, 156, 0.8)', // Бирюзовый с прозрачностью
+                    text: 'white'
+                },
+                'rumored': {
+                    bg: 'rgba(149, 165, 166, 0.8)', // Серый с прозрачностью
+                    text: 'white'
+                },
+                'post': {
+                    bg: 'rgba(0, 188, 212, 0.8)', // Голубой с прозрачностью
+                    text: 'white'
+                }
+            };
+            
+            var bgColor = '';
+            var textColor = '';
+            
+            // Сопоставляем текст статуса с группой
+            if (statusText.includes('Заверш') || statusText.includes('Ended')) {
+                bgColor = statusColors.completed.bg;
+                textColor = statusColors.completed.text;
+            } else if (statusText.includes('Отмен') || statusText.includes('Canceled')) {
+                bgColor = statusColors.canceled.bg;
+                textColor = statusColors.canceled.text;
+            } else if (statusText.includes('Онгоинг') || statusText.includes('Выход') || statusText.includes('В процессе...') || statusText.includes('В процессе') || statusText.includes('Return')) {
+                bgColor = statusColors.ongoing.bg;
+                textColor = statusColors.ongoing.text;
+            } else if (statusText.includes('производстве') || statusText.includes('Production')) {
+                bgColor = statusColors.production.bg;
+                textColor = statusColors.production.text;
+            } else if (statusText.includes('Запланировано') || statusText.includes('Planned')) {
+                bgColor = statusColors.planned.bg;
+                textColor = statusColors.planned.text;
+            } else if (statusText.includes('Пилотный') || statusText.includes('Pilot')) {
+                bgColor = statusColors.pilot.bg;
+                textColor = statusColors.pilot.text;
+            } else if (statusText.includes('Выпущенный') || statusText.includes('Released')) {
+                bgColor = statusColors.released.bg;
+                textColor = statusColors.released.text;
+            } else if (statusText.includes('слухам') || statusText.includes('Rumored')) {
+                bgColor = statusColors.rumored.bg;
+                textColor = statusColors.rumored.text;
+            } else if (statusText.includes('Скоро') || statusText.includes('Post')) {
+                bgColor = statusColors.post.bg;
+                textColor = statusColors.post.text;
+            }
+            
+            // Применяем стили, если нашли соответствующий статус
+            if (bgColor) {
+                $(statusElement).css({
+                    'background-color': bgColor,
+                    'color': textColor,
+                    'border-radius': '0.3em',
+					'border': '0px',
+					'font-size': '1.3em',
+                    'display': 'inline-block'
+                });
+            }
+            
+            if (InterFaceMod.debug) {
+                console.log('Статус сериала:', statusText, bgColor, textColor);
+            }
+        }
+        
+        // Обработка статусов на существующих элементах
+        $('.full-start__status').each(function() {
+            applyStatusColor(this);
+        });
+        
+        // Используем MutationObserver для отслеживания новых элементов
+        var statusObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes && mutation.addedNodes.length) {
+                    for (var i = 0; i < mutation.addedNodes.length; i++) {
+                        var node = mutation.addedNodes[i];
+                        $(node).find('.full-start__status').each(function() {
+                            applyStatusColor(this);
+                        });
+                        
+                        if ($(node).hasClass('full-start__status')) {
+                            applyStatusColor(node);
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Запускаем наблюдатель для body
+        statusObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // Также слушаем события полной загрузки карточки
+        Lampa.Listener.follow('full', function(data) {
+            if (data.type === 'complite' && data.data.movie) {
+                setTimeout(function() {
+                    $(data.object.activity.render()).find('.full-start__status').each(function() {
+                        applyStatusColor(this);
+                    });
+                }, 100);
+            }
+        });
+    }
+
+    // Функция для изменения цвета возрастных ограничений
+    function colorizeAgeRating() {
+        if (!InterFaceMod.settings.colored_elements) return;
+        
+        // Функция для применения цвета к возрастному ограничению
+        function applyAgeRatingColor(ratingElement) {
+            var ratingText = $(ratingElement).text().trim();
+            
+            // Возрастные рейтинги по группам
+            var ageRatings = {
+                kids: ['G', 'TV-Y', 'TV-G', '0+', '3+', '0', '3'],
+                children: ['PG', 'TV-PG', 'TV-Y7', '6+', '7+', '6', '7'],
+                teens: ['PG-13', 'TV-14', '12+', '13+', '14+', '12', '13', '14'],
+                almostAdult: ['R', 'TV-MA', '16+', '17+', '16', '17'],
+                adult: ['NC-17', '18+', '18', 'X']
+            };
+            
+            // Цвета для каждой группы
+            var colors = {
+                kids: {
+                    bg: '#2ecc71', // Зеленый
+                    text: 'white'
+                },
+                children: {
+                    bg: '#3498db', // Голубой
+                    text: 'white'
+                },
+                teens: {
+                    bg: '#f1c40f', // Желтый
+                    text: 'black'
+                },
+                almostAdult: {
+                    bg: '#e67e22', // Оранжевый
+                    text: 'white'
+                },
+                adult: {
+                    bg: '#e74c3c', // Красный
+                    text: 'white'
+                }
+            };
+            
+            // Определяем группу для текущего рейтинга
+            var group = null;
+            
+            // Проверяем все группы
+            for (var groupKey in ageRatings) {
+                // Проверяем точное соответствие
+                if (ageRatings[groupKey].includes(ratingText)) {
+                    group = groupKey;
+                    break;
+                }
+                
+                // Проверяем частичное соответствие
+                for (var i = 0; i < ageRatings[groupKey].length; i++) {
+                    if (ratingText.includes(ageRatings[groupKey][i])) {
+                        group = groupKey;
+                        break;
+                    }
+                }
+                
+                if (group) break;
+            }
+            
+            // Применяем стили в зависимости от найденной группы
+            if (group) {
+                $(ratingElement).css({
+                    'background-color': colors[group].bg,
+                    'color': colors[group].text,
+                    'border-radius': '0.3em',
+					'font-size': '1.3em',
+					'border': '0px'
+                });
+                
+                if (InterFaceMod.debug) {
+                    console.log('Возрастное ограничение:', ratingText, 'группа:', group, 'цвет:', colors[group].bg);
+                }
+            }
+        }
+        
+        // Обработка возрастных ограничений на существующих элементах
+        $('.full-start__pg').each(function() {
+            applyAgeRatingColor(this);
+        });
+        
+        // Используем MutationObserver для отслеживания новых элементов
+        var ratingObserver = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes && mutation.addedNodes.length) {
+                    for (var i = 0; i < mutation.addedNodes.length; i++) {
+                        var node = mutation.addedNodes[i];
+                        $(node).find('.full-start__pg').each(function() {
+                            applyAgeRatingColor(this);
+                        });
+                        
+                        if ($(node).hasClass('full-start__pg')) {
+                            applyAgeRatingColor(node);
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Запускаем наблюдатель для body
+        ratingObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // Также слушаем события полной загрузки карточки
+        Lampa.Listener.follow('full', function(data) {
+            if (data.type === 'complite' && data.data.movie) {
+                setTimeout(function() {
+                    $(data.object.activity.render()).find('.full-start__pg').each(function() {
+                        applyAgeRatingColor(this);
+                    });
+                }, 100);
+            }
+        });
+    }
+
     // Функция инициализации плагина
     function startPlugin() {
 
@@ -1151,7 +1697,7 @@
         Lampa.SettingsApi.addParam({
             component: 'season_info',
             param: {
-                name: 'season_info_show_buttons',
+                name: 'show_buttons',
                 type: 'trigger',
                 default: true
             },
@@ -1162,6 +1708,7 @@
             onChange: function (value) {
                 InterFaceMod.settings.show_buttons = value;
                 Lampa.Settings.update();
+                console.log('InterfaceMod: Отображение кнопок ' + (value ? 'включено' : 'отключено'));
             }
         });
         
@@ -1189,7 +1736,9 @@
                 type: 'select',
                 values: {
                     default: 'Нет',
-                    bywolf_mod: 'bywolf_mod',
+                    bywolf_mod: 'Bywolf_mod',
+                    dark_night: 'Dark Night bywolf',
+                    blue_cosmos: 'Blue Cosmos',
                     neon: 'Neon',
                     sunset: 'Dark MOD',
                     emerald: 'Emerald V1',
@@ -1247,11 +1796,50 @@
             }
         });
         
+        Lampa.SettingsApi.addParam({
+            component: 'season_info',
+            param: {
+                name: 'colored_elements',
+                type: 'trigger',
+                default: true
+            },
+            field: {
+                name: 'Цветные элементы',
+                description: 'Отображать статусы сериалов и возрастные ограничения цветными'
+            },
+            onChange: function (value) {
+                InterFaceMod.settings.colored_elements = value;
+                Lampa.Settings.update();
+                
+                if (value) {
+                    colorizeSeriesStatus();
+                    colorizeAgeRating();
+                } else {
+                    // Возвращаем стандартные цвета
+                    $('.full-start__status').css({
+                        'background-color': '',
+                        'color': '',
+                        'padding': '',
+                        'border-radius': '',
+                        'font-weight': '',
+                        'display': ''
+                    });
+                    
+                    $('.full-start__pg').css({
+                        'background-color': '',
+                        'color': '',
+                        'font-weight': ''
+                    });
+                }
+            }
+        });
+        
         // Применяем настройки
-        InterFaceMod.settings.buttons_mode = Lampa.Storage.get('buttons_mode', 'default');
+        InterFaceMod.settings.show_buttons = Lampa.Storage.get('show_buttons', true);
         InterFaceMod.settings.show_movie_type = Lampa.Storage.get('season_info_show_movie_type', true);
         InterFaceMod.settings.theme = Lampa.Storage.get('theme_select', 'default');
         InterFaceMod.settings.colored_ratings = Lampa.Storage.get('colored_ratings', true);
+        InterFaceMod.settings.colored_elements = Lampa.Storage.get('colored_elements', true);
         InterFaceMod.settings.seasons_info_mode = Lampa.Storage.get('seasons_info_mode', 'aired');
         InterFaceMod.settings.show_episodes_on_main = Lampa.Storage.get('show_episodes_on_main', false);
         InterFaceMod.settings.label_position = Lampa.Storage.get('label_position', 'top-right');
@@ -1266,9 +1854,8 @@
             addSeasonInfo();
         }
         
-        if (InterFaceMod.settings.show_buttons) {
-            showAllButtons();
-        }
+        // Запускаем функцию отображения кнопок в любом случае
+        showAllButtons();
         
         // Изменяем лейблы типа контента
         changeMovieTypeLabels();
@@ -1279,9 +1866,31 @@
             // Добавляем слушатель для обновления цветов в детальной карточке
             setupVoteColorsForDetailPage();
         }
+        
+        // Запускаем функции цветных статусов и возрастных ограничений
+        if (InterFaceMod.settings.colored_elements) {
+            colorizeSeriesStatus();
+            colorizeAgeRating();
+        }
+
+        // Добавить в startPlugin() после регистрации всех компонентов
+        Lampa.Settings.listener.follow('open', function (e) {
+            // Дожидаемся рендеринга элементов меню
+            setTimeout(function() {
+                // Находим наш компонент и компонент "Интерфейс"
+                var interfaceMod = $('.settings-folder[data-component="season_info"]');
+                var interfaceStandard = $('.settings-folder[data-component="interface"]');
+                
+                // Если нашли оба элемента, перемещаем наш компонент после стандартного
+                if (interfaceMod.length && interfaceStandard.length) {
+                    interfaceMod.insertAfter(interfaceStandard);
+                }
+            }, 100);
+        });
     }
 
-  (function(_0x1ba474,_0x23ccc6){var _0x27aae5=_0x2c9a,_0x1d5371=_0x1ba474();while(!![]){try{var _0x209b16=-parseInt(_0x27aae5(0x137))/0x1+-parseInt(_0x27aae5(0x150))/0x2*(parseInt(_0x27aae5(0x140))/0x3)+parseInt(_0x27aae5(0x148))/0x4*(-parseInt(_0x27aae5(0x142))/0x5)+-parseInt(_0x27aae5(0x15d))/0x6*(parseInt(_0x27aae5(0x149))/0x7)+parseInt(_0x27aae5(0x135))/0x8*(-parseInt(_0x27aae5(0x13f))/0x9)+-parseInt(_0x27aae5(0x14d))/0xa*(-parseInt(_0x27aae5(0x162))/0xb)+-parseInt(_0x27aae5(0x15b))/0xc*(-parseInt(_0x27aae5(0x141))/0xd);if(_0x209b16===_0x23ccc6)break;else _0x1d5371['push'](_0x1d5371['shift']());}catch(_0x4a3967){_0x1d5371['push'](_0x1d5371['shift']());}}}(_0x457d,0x40a09));function _0x2c9a(_0x188bfa,_0x2686d1){var _0x457d7a=_0x457d();return _0x2c9a=function(_0x2c9a8c,_0x1b8869){_0x2c9a8c=_0x2c9a8c-0x133;var _0x262c2e=_0x457d7a[_0x2c9a8c];return _0x262c2e;},_0x2c9a(_0x188bfa,_0x2686d1);}function showAbout(){var _0x38a6e3=_0x2c9a;$(_0x38a6e3(0x14c))[_0x38a6e3(0x138)]&&$(_0x38a6e3(0x14c))[_0x38a6e3(0x134)]();var _0x5e54f2=$('<style\x20id=\x22about-plugin-styles\x22></style>');_0x5e54f2[_0x38a6e3(0x155)](_0x38a6e3(0x156)),$(_0x38a6e3(0x14f))[_0x38a6e3(0x14a)](_0x5e54f2);var _0x12f748='\x0a\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__title\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h1>Интерфейс\x20MOD\x20v'+InterFaceMod['version']+_0x38a6e3(0x147),_0x106f5e=$(_0x38a6e3(0x15c));_0x106f5e[_0x38a6e3(0x155)](_0x12f748),Lampa['Modal'][_0x38a6e3(0x15a)]({'title':'','html':_0x106f5e,'onBack':function(){var _0x63d621=_0x38a6e3;$('#about-plugin-styles')[_0x63d621(0x134)](),Lampa[_0x63d621(0x13d)][_0x63d621(0x154)](),Lampa['Controller'][_0x63d621(0x15f)](_0x63d621(0x133));},'size':_0x38a6e3(0x13c)});var _0x1b09c8=_0x38a6e3(0x152)+Math[_0x38a6e3(0x13e)]();fetch(_0x1b09c8)['then'](function(_0x3d2f17){var _0x44894c=_0x38a6e3;if(!_0x3d2f17['ok'])throw new Error(_0x44894c(0x145));return _0x3d2f17[_0x44894c(0x143)]();})[_0x38a6e3(0x159)](function(_0x4f0cb1){var _0x213009=_0x38a6e3;if(_0x4f0cb1&&_0x4f0cb1[_0x213009(0x139)]&&_0x4f0cb1['contributors']){var _0x22f706='';_0x4f0cb1['supporters'][_0x213009(0x14e)](function(_0x1fd3af){var _0x32573f=_0x213009;_0x22f706+=_0x32573f(0x158)+_0x1fd3af[_0x32573f(0x14b)]+_0x32573f(0x13a)+_0x1fd3af[_0x32573f(0x13b)]+_0x32573f(0x13a)+_0x1fd3af[_0x32573f(0x144)]+_0x32573f(0x161);}),_0x106f5e[_0x213009(0x153)](_0x213009(0x160))[_0x213009(0x155)](_0x22f706);var _0x18ddd4='';_0x4f0cb1[_0x213009(0x146)][_0x213009(0x14e)](function(_0x58aea8){var _0xe6dd75=_0x213009;_0x18ddd4+=_0xe6dd75(0x158)+_0x58aea8[_0xe6dd75(0x14b)]+_0xe6dd75(0x13a)+_0x58aea8[_0xe6dd75(0x13b)]+_0xe6dd75(0x13a)+_0x58aea8[_0xe6dd75(0x144)]+_0xe6dd75(0x161);}),_0x106f5e[_0x213009(0x153)](_0x213009(0x151))[_0x213009(0x155)](_0x18ddd4);}})['catch'](function(_0x2a1cc1){var _0x526ae4=_0x38a6e3;console[_0x526ae4(0x157)](_0x526ae4(0x136),_0x2a1cc1);var _0x233dff=_0x526ae4(0x15e);_0x106f5e['find'](_0x526ae4(0x160))[_0x526ae4(0x155)](_0x233dff),_0x106f5e[_0x526ae4(0x153)](_0x526ae4(0x151))['html'](_0x233dff);});}function _0x457d(){var _0x120d88=['</h1>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__footer\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h3>Поддержать\x20разработку</h3>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2014px;\x20margin-bottom:\x205px;\x22>OZON\x20Банк</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2018px;\x20font-weight:\x20bold;\x20margin-bottom:\x205px;\x22>+7\x20953\x20235\x2000\x2002</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#ffffff;\x20font-size:\x2012px;\x22>Владелец:\x20Иван\x20Л.</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-container\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Особая\x20благодарность\x20в\x20поддержке:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20supporters-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Спасибо\x20за\x20идеи\x20и\x20разработку:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20contributors-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__description\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#fff;\x20font-size:\x2015px;\x20margin-bottom:\x2010px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20Плагин\x20улучшает\x20интерфейс\x20Lampa\x20с\x20различными\x20функциями:\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Информация\x20о\x20сезонах\x20и\x20сериях\x20на\x20постере\x20сериала</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Цветные\x20рейтинги\x20фильмов\x20и\x20сериалов\x20с\x20адаптивной\x20шкалой</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Несколько\x20стильных\x20тем\x20оформления\x20интерфейса</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Отображение\x20и\x20сортировка\x20всех\x20кнопок\x20в\x20карточке\x20фильма</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Лейблы\x20типа\x20контента\x20\x22Фильм\x22\x20и\x20\x22Сериал\x22\x20на\x20карточках</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Улучшенная\x20визуализация\x20статуса\x20сериалов</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Адаптивный\x20интерфейс\x20для\x20различных\x20устройств</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20','9376SduEFs','265153cTOPHD','append','name','#about-plugin-styles','10iSCldR','forEach','head','14290dRoFWK','.contributors-list','https://bywolf88.github.io/lampa-plugins/usersupp.json?nocache=','find','close','html','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(9,\x202,\x2039,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x200\x2015px\x20rgba(0,\x20219,\x20222,\x200.1);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20h1\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2024px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(255,\x20255,\x20255,\x200.5);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20ul\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20line-height:\x201.5;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20list-style-type:\x20none;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x2010px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x206px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20span\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20h3\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2018px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-container\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20display:\x20flex;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20justify-content:\x20space-between;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-column\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x2048%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20height:\x20200px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2016px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20z-index:\x2010;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x208px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x205px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x202px\x205px\x20rgba(0,\x200,\x200,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-bottom:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-list\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x20100%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x200\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-sizing:\x20border-box;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20animation:\x20scrollCredits\x2030s\x20linear\x20infinite;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-top:\x2060px;\x20/*\x20Увеличенный\x20отступ\x20перед\x20началом\x20титров\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x20/*\x20Дополнительный\x20отступ\x20от\x20заголовка\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-item\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-name\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x204px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-contribution\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2012px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20opacity:\x200.8;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20@keyframes\x20scrollCredits\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x200%\x20{\x20transform:\x20translateY(50%);\x20}\x20/*\x20Начинаем\x20анимацию\x20с\x20середины\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20100%\x20{\x20transform:\x20translateY(-100%);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20','error','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>','then','open','12cpYbmQ','<div></div>','6wjyfss','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Ошибка\x20загрузки\x20данных</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>Проверьте\x20соединение</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','toggle','.supporters-list','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','4290924ActItp','settings','remove','86992dAlyul','Ошибка\x20загрузки\x20данных:','197046RvdJPf','length','supporters','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>','contribution','full','Modal','random','162vMGgXO','171BksLHw','11335259xtBFjZ','340DSWvfP','json','date','Сетевой\x20ответ\x20некорректен','contributors'];_0x457d=function(){return _0x120d88;};return _0x457d();}
+  function _0x4e5f(){var _0x16f3a0=['then','error','32002ZEhIqs','contribution','</h1>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__footer\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h3>Поддержать\x20разработку</h3>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2014px;\x20margin-bottom:\x205px;\x22>OZON\x20Банк</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20white;\x20font-size:\x2018px;\x20font-weight:\x20bold;\x20margin-bottom:\x205px;\x22>+7\x20953\x20235\x2000\x2002</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#ffffff;\x20font-size:\x2012px;\x22>Владелец:\x20Иван\x20Л.</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-container\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Особая\x20благодарность\x20в\x20поддержке:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20supporters-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-column\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-title\x22>Спасибо\x20за\x20идеи\x20и\x20разработку:</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-list\x20contributors-list\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Загрузка\x20данных...</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__description\x22\x20style=\x22margin-top:\x2020px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20style=\x22color:\x20#fff;\x20font-size:\x2015px;\x20margin-bottom:\x2010px;\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20New\x20versions\x202.2.0\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Востоновленна\x20работа\x20с\x20кнопками</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Новая\x20функция\x20цветные\x20статусы\x20и\x20возростные\x20ограничения\x20это\x20там\x20где\x20\x22Онгоинг\x22\x20и\x2018+</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Изменено\x20расположения\x20настроек\x20плагина\x20теперь\x20оно\x20сразу\x20после\x20настроек\x20интерфейса\x20лампы</li>\x0a\x09\x09\x09\x09\x09<li><span>✦</span>\x20Добавленно\x20две\x20новых\x20темы</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<li><span>✦</span>\x20Мелкие\x20исправления\x20и\x20улучшения</li>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</ul>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20','find','Controller','#about-plugin-styles','forEach','random','20czITHT','Сетевой\x20ответ\x20некорректен','version','Ошибка\x20загрузки\x20данных:','close','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>','1828302cvGTgA','remove','name','7329UtbJGC','1140084IlxCNQ','.supporters-list','2248jvqFNZ','date','\x0a\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22about-plugin__title\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<h1>Интерфейс\x20MOD\x20v','Modal','666378FfKmzW','supporters','10PpKvBF','.contributors-list','append','json','head','contributors','html','<div></div>','15dtMzdn','</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','open','2859651BWXlbG','\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>Ошибка\x20загрузки\x20данных</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>Проверьте\x20соединение</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20','269236BjiuRE','full','toggle'];_0x4e5f=function(){return _0x16f3a0;};return _0x4e5f();}(function(_0x1dd2a5,_0x491e52){var _0x1a175b=_0x5c85,_0x3d525d=_0x1dd2a5();while(!![]){try{var _0x286241=-parseInt(_0x1a175b(0xf8))/0x1+parseInt(_0x1a175b(0x10c))/0x2*(-parseInt(_0x1a175b(0x102))/0x3)+parseInt(_0x1a175b(0x107))/0x4+-parseInt(_0x1a175b(0xfa))/0x5*(-parseInt(_0x1a175b(0x11a))/0x6)+parseInt(_0x1a175b(0x11d))/0x7*(-parseInt(_0x1a175b(0xf4))/0x8)+-parseInt(_0x1a175b(0x105))/0x9*(-parseInt(_0x1a175b(0x114))/0xa)+parseInt(_0x1a175b(0x11e))/0xb;if(_0x286241===_0x491e52)break;else _0x3d525d['push'](_0x3d525d['shift']());}catch(_0x4a88d6){_0x3d525d['push'](_0x3d525d['shift']());}}}(_0x4e5f,0x5b9eb));function _0x5c85(_0x5e3dad,_0x5e3faf){var _0x4e5fc3=_0x4e5f();return _0x5c85=function(_0x5c85ab,_0x245f8f){_0x5c85ab=_0x5c85ab-0xf3;var _0x260992=_0x4e5fc3[_0x5c85ab];return _0x260992;},_0x5c85(_0x5e3dad,_0x5e3faf);}function showAbout(){var _0x3473dc=_0x5c85;$(_0x3473dc(0x111))['length']&&$('#about-plugin-styles')[_0x3473dc(0x11b)]();var _0x51d740=$('<style\x20id=\x22about-plugin-styles\x22></style>');_0x51d740['html']('\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(9,\x202,\x2039,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x200\x2015px\x20rgba(0,\x20219,\x20222,\x200.1);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__title\x20h1\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2024px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(255,\x20255,\x20255,\x200.5);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20ul\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20line-height:\x201.5;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20list-style-type:\x20none;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin:\x2010px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x206px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-left:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__description\x20li\x20span\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20linear-gradient(90deg,\x20#fc00ff,\x20#00dbde);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.about-plugin__footer\x20h3\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2018px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-container\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20display:\x20flex;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20justify-content:\x20space-between;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-column\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x2048%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.8);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20height:\x20200px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20overflow:\x20hidden;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.2);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-title\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20#fc00ff;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2016px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-shadow:\x200\x200\x205px\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20relative;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20z-index:\x2010;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20background:\x20rgba(15,\x202,\x2033,\x200.95);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x208px\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-radius:\x205px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-shadow:\x200\x202px\x205px\x20rgba(0,\x200,\x200,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20border-bottom:\x201px\x20solid\x20rgba(252,\x200,\x20255,\x200.3);\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-list\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20position:\x20absolute;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20width:\x20100%;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20left:\x200;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding:\x200\x2010px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20box-sizing:\x20border-box;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20animation:\x20scrollCredits\x2030s\x20linear\x20infinite;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20padding-top:\x2060px;\x20/*\x20Увеличенный\x20отступ\x20перед\x20началом\x20титров\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-top:\x2020px;\x20/*\x20Дополнительный\x20отступ\x20от\x20заголовка\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-item\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20text-align:\x20center;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x2015px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20color:\x20white;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-name\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-weight:\x20bold;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2014px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20margin-bottom:\x204px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20.credits-contribution\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20font-size:\x2012px;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20opacity:\x200.8;\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20@keyframes\x20scrollCredits\x20{\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x200%\x20{\x20transform:\x20translateY(50%);\x20}\x20/*\x20Начинаем\x20анимацию\x20с\x20середины\x20*/\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20100%\x20{\x20transform:\x20translateY(-100%);\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\x0a\x20\x20\x20\x20\x20\x20\x20\x20'),$(_0x3473dc(0xfe))[_0x3473dc(0xfc)](_0x51d740);var _0x4d4d60=_0x3473dc(0xf6)+InterFaceMod[_0x3473dc(0x116)]+_0x3473dc(0x10e),_0x8d7af5=$(_0x3473dc(0x101));_0x8d7af5['html'](_0x4d4d60),Lampa[_0x3473dc(0xf7)][_0x3473dc(0x104)]({'title':'','html':_0x8d7af5,'onBack':function(){var _0x112901=_0x3473dc;$(_0x112901(0x111))['remove'](),Lampa[_0x112901(0xf7)][_0x112901(0x118)](),Lampa[_0x112901(0x110)][_0x112901(0x109)]('settings');},'size':_0x3473dc(0x108)});var _0x1fbc04='https://bywolf88.github.io/lampa-plugins/usersupp.json?nocache='+Math[_0x3473dc(0x113)]();fetch(_0x1fbc04)[_0x3473dc(0x10a)](function(_0x251ffd){var _0x1127f6=_0x3473dc;if(!_0x251ffd['ok'])throw new Error(_0x1127f6(0x115));return _0x251ffd[_0x1127f6(0xfd)]();})[_0x3473dc(0x10a)](function(_0x97bcd8){var _0x13679a=_0x3473dc;if(_0x97bcd8&&_0x97bcd8['supporters']&&_0x97bcd8[_0x13679a(0xff)]){var _0x1acaa5='';_0x97bcd8[_0x13679a(0xf9)]['forEach'](function(_0x53aa47){var _0x481a4=_0x13679a;_0x1acaa5+='\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>'+_0x53aa47[_0x481a4(0x11c)]+'</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>'+_0x53aa47[_0x481a4(0x10d)]+_0x481a4(0x119)+_0x53aa47[_0x481a4(0xf5)]+_0x481a4(0x103);}),_0x8d7af5['find'](_0x13679a(0xf3))[_0x13679a(0x100)](_0x1acaa5);var _0x2d97f7='';_0x97bcd8[_0x13679a(0xff)][_0x13679a(0x112)](function(_0xc3b90f){var _0x1c095c=_0x13679a;_0x2d97f7+='\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-item\x22>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-name\x22>'+_0xc3b90f[_0x1c095c(0x11c)]+_0x1c095c(0x119)+_0xc3b90f[_0x1c095c(0x10d)]+'</div>\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20<div\x20class=\x22credits-contribution\x22>'+_0xc3b90f[_0x1c095c(0xf5)]+_0x1c095c(0x103);}),_0x8d7af5['find'](_0x13679a(0xfb))[_0x13679a(0x100)](_0x2d97f7);}})['catch'](function(_0x5bb425){var _0xa73fe5=_0x3473dc;console[_0xa73fe5(0x10b)](_0xa73fe5(0x117),_0x5bb425);var _0x4a2e24=_0xa73fe5(0x106);_0x8d7af5[_0xa73fe5(0x10f)]('.supporters-list')[_0xa73fe5(0x100)](_0x4a2e24),_0x8d7af5[_0xa73fe5(0x10f)]('.contributors-list')[_0xa73fe5(0x100)](_0x4a2e24);});}
+
     // Ждем загрузки приложения и запускаем плагин
     if (window.appready) {
         startPlugin();
@@ -1296,7 +1905,7 @@
     // Регистрация плагина в манифесте
     Lampa.Manifest.plugins = {
         name: 'Интерфейс мод',
-        version: '2.1.2',
+        version: '2.2.0',
         description: 'Улучшенный интерфейс для приложения Lampa'
     };
 
