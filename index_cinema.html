@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Онлайн кинотеатры — CinemaByWolf</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #090227 0%, #170b34 50%, #261447 100%);
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+        }
+        .about-cinemabywolf-root {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 32px 12px 32px 12px;
+        }
+        .about-cinemabywolf-flex {
+            display: flex;
+            flex-direction: row;
+            gap: 24px;
+            justify-content: center;
+            align-items: stretch;
+            flex-wrap: wrap;
+        }
+        .about-cinemabywolf-left {
+            flex: 0 0 340px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        .about-cinemabywolf-support {
+            background: linear-gradient(90deg, #fc00ff 0%, #00dbde 100%);
+            border-radius: 24px;
+            padding: 32px 18px 22px 18px;
+            text-align: center;
+            box-shadow: 0 2px 16px 0 rgba(0,219,222,0.08);
+            width: 100%;
+            margin: 0px 44px 28px;
+        }
+        .about-cinemabywolf-support-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+        .about-cinemabywolf-support-phone {
+            font-size: 2em;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 8px #e94057;
+        }
+        .about-cinemabywolf-support-bank {
+            font-size: 1.2em;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+        .about-cinemabywolf-support-author {
+            font-size: 1.1em;
+            color: #e0e0e0;
+            margin-bottom: 0;
+        }
+        .about-cinemabywolf-qr {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 0 0 0;
+        }
+        .about-cinemabywolf-qr-img {
+            width: 180px;
+            height: 240px;
+            border-radius: 18px;
+            box-shadow: 0 2px 16px 0 rgba(0,219,222,0.12);
+            background: #fff;
+            margin-bottom: 12px;
+        }
+        .about-cinemabywolf-qr-label {
+            font-size: 1.2em;
+            color: #00dbde;
+            font-weight: bold;
+            margin-bottom: 0;
+        }
+        .about-cinemabywolf-right {
+            flex: 1 1 0%;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+        .about-cinemabywolf-info {
+            background: rgba(24,24,40,0.95);
+            border-radius: 20px;
+            margin: 0;
+            padding: 32px 32px 32px 32px;
+            box-shadow: 0 2px 12px rgba(233,64,87,0.08);
+        }
+        .about-cinemabywolf-title {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 18px;
+            background: linear-gradient(90deg, #8a2387, #e94057, #f27121);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 8px rgba(233,64,87,0.15);
+        }
+        .about-cinemabywolf-version {
+            font-size: 1.2em;
+            color: #00dbde;
+            margin-bottom: 16px;
+        }
+        .about-cinemabywolf-desc {
+            font-size: 1.2em;
+            color: #fff;
+            margin-bottom: 18px;
+        }
+        .about-cinemabywolf-list {
+            margin: 0 0 0 24px;
+            padding: 0;
+            color: #fff;
+            font-size: 1.1em;
+        }
+        .about-cinemabywolf-list li {
+            margin-bottom: 10px;
+        }
+        .about-cinemabywolf-btns {
+            display: flex;
+            flex-direction: row;
+            gap: 18px;
+            margin: 32px 0 0 0;
+            flex-wrap: wrap;
+        }
+        .about-cinemabywolf-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 180px;
+            padding: 16px 28px;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #fff;
+            background: linear-gradient(90deg, #fc00ff 0%, #00dbde 100%);
+            border: none;
+            border-radius: 14px;
+            box-shadow: 0 2px 16px 0 rgba(0,219,222,0.08);
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 12px;
+        }
+        .about-cinemabywolf-btn:hover {
+            transform: scale(1.04);
+            box-shadow: 0 4px 24px 0 rgba(0,219,222,0.18);
+        }
+        .about-cinemabywolf-footer {
+            text-align: center;
+            margin-top: 48px;
+            color: #aaa;
+            font-size: 1em;
+        }
+        @media (max-width: 900px) {
+            .about-cinemabywolf-flex { flex-direction: column; align-items: stretch; }
+            .about-cinemabywolf-left, .about-cinemabywolf-right { margin: 0 auto; }
+            .about-cinemabywolf-btns { flex-direction: column; align-items: stretch; }
+        }
+    </style>
+</head>
+<body>
+    <div class="about-cinemabywolf-root">
+        <div class="about-cinemabywolf-flex">
+            <div class="about-cinemabywolf-left">
+                <div class="about-cinemabywolf-support">
+                    <div class="about-cinemabywolf-support-title">Поддержка разработчика</div>
+                    <div class="about-cinemabywolf-support-phone">+7 953 235 00 02</div>
+                    <div class="about-cinemabywolf-support-bank">OZON Банк</div>
+                    <div class="about-cinemabywolf-support-author">Иван Лазарев (ByWolf)</div>
+                </div>
+                <div class="about-cinemabywolf-qr">
+                    <img class="about-cinemabywolf-qr-img" src="https://bywolf88.github.io/lampa-plugins/qr_code.png" alt="Telegram QR">
+                    <div class="about-cinemabywolf-qr-label">Telegram ByWolf</div>
+                </div>
+            </div>
+            <div class="about-cinemabywolf-right">
+                <div class="about-cinemabywolf-info">
+                    <div class="about-cinemabywolf-title">Онлайн кинотеатры</div>
+                    <div class="about-cinemabywolf-version">Версия 2.1.1</div>
+                    <div class="about-cinemabywolf-desc">Плагин для быстрого доступа к онлайн-кинотеатрам прямо из меню приложения Lampa. Позволяет удобно фильтровать сервисы, быстро переходить к нужному каталогу, поддерживает RU и EN площадки, а также гибко настраивается через меню.</div>
+                    <ul class="about-cinemabywolf-list">
+                        <li>✦ Быстрый доступ к популярным сервисам (Start, Premier, KION, Okko, Netflix и др.)</li>
+                        <li>✦ Гибкие настройки отображения RU/EN кинотеатров</li>
+                        <li>✦ Логотипы и фильтрация по сервисам</li>
+                        <li>✦ Поддержка Android и ТВ</li>
+                        <li>✦ Современный дизайн и плавная анимация</li>
+                    </ul>
+                    <div class="about-cinemabywolf-btns">
+                        <a class="about-cinemabywolf-btn" href="index.html">На главную</a>
+                        <a class="about-cinemabywolf-btn" href="index_inter.html">Интерфейс MOD</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="about-cinemabywolf-footer">
+            &copy; 2025 ByWolf. Все права защищены.
+        </div>
+    </div>
+</body>
+</html>
