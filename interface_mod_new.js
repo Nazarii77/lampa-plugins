@@ -177,75 +177,76 @@
     // Информация о плагине
     var aboutPluginData = null;
     
-var _0x1ac3fb = function () {
-  var _0x416401 = true;
-  return function (_0x442953, _0x2163f4) {
-    var _0x1ecc3f = _0x416401 ? function () {
-      if (_0x2163f4) {
-        var _0x44fa79 = _0x2163f4.apply(_0x442953, arguments);
-        _0x2163f4 = null;
-        return _0x44fa79;
-      }
-    } : function () {};
-    _0x416401 = false;
-    return _0x1ecc3f;
-  };
-}();
-var _0x201df3 = _0x1ac3fb(this, function () {
-  var _0x57f5c8 = function () {
-    var _0x3ae759;
-    try {
-      _0x3ae759 = Function("return (function() {}.constructor(\"return this\")( ));")();
-    } catch (_0x1ba830) {
-      _0x3ae759 = window;
-    }
-    return _0x3ae759;
-  };
-  var _0x4aaef7 = _0x57f5c8();
-  var _0x2761d2 = _0x4aaef7.console = _0x4aaef7.console || {};
-  var _0x1a9a00 = ['log', "warn", "info", "error", "exception", "table", 'trace'];
-  for (var _0x27f709 = 0; _0x27f709 < _0x1a9a00.length; _0x27f709++) {
-    var _0x1acc3f = _0x1ac3fb.constructor.prototype.bind(_0x1ac3fb);
-    var _0x3080a3 = _0x1a9a00[_0x27f709];
-    var _0x15ce23 = _0x2761d2[_0x3080a3] || _0x1acc3f;
-    _0x1acc3f.__proto__ = _0x1ac3fb.bind(_0x1ac3fb);
-    _0x1acc3f.toString = _0x15ce23.toString.bind(_0x15ce23);
-    _0x2761d2[_0x3080a3] = _0x1acc3f;
-  }
-});
-_0x201df3();
-function loadPluginInfo(_0x2f7505) {
-  var _0x45dbcf = "https://bywolf88.github.io/lampa-plugins/readme.json?v=" + Date.now();
-  var _0x1f6e92 = new XMLHttpRequest();
-  _0x1f6e92.open('GET', _0x45dbcf, true);
-  _0x1f6e92.timeout = 5000;
-  _0x1f6e92.onload = function () {
-    if (_0x1f6e92.status >= 200 && _0x1f6e92.status < 300) {
-      try {
-        aboutPluginData = JSON.parse(_0x1f6e92.responseText);
-        if (aboutPluginData && typeof aboutPluginData === "object") {
-          _0x2f7505(null, aboutPluginData);
-        } else {
-          _0x2f7505("Неверный формат данных", null);
-        }
-      } catch (_0x2d2379) {
-        _0x2f7505("Ошибка парсинга данных: " + _0x2d2379.message, null);
-      }
-    } else {
-      _0x2f7505("Ошибка HTTP: " + _0x1f6e92.status, null);
-    }
-  };
-  _0x1f6e92.onerror = function () {
-    _0x2f7505("Сетевая ошибка", null);
-  };
-  _0x1f6e92.ontimeout = function () {
-    _0x2f7505("Тайм-аут запроса", null);
-  };
-  _0x1f6e92.send();
-}
-function showAboutPlugin() {
-  return;
-}
+	var _0x1ac3fb = function () {
+	  var _0x416401 = true;
+	  return function (_0x442953, _0x2163f4) {
+		var _0x1ecc3f = _0x416401 ? function () {
+		  if (_0x2163f4) {
+			var _0x44fa79 = _0x2163f4.apply(_0x442953, arguments);
+			_0x2163f4 = null;
+			return _0x44fa79;
+		  }
+		} : function () {};
+		_0x416401 = false;
+		return _0x1ecc3f;
+	  };
+	}();
+	var _0x201df3 = _0x1ac3fb(this, function () {
+	  var _0x57f5c8 = function () {
+		var _0x3ae759;
+		try {
+		  _0x3ae759 = Function("return (function() {}.constructor(\"return this\")( ));")();
+		} catch (_0x1ba830) {
+		  _0x3ae759 = window;
+		}
+		return _0x3ae759;
+	  };
+	  var _0x4aaef7 = _0x57f5c8();
+	  var _0x2761d2 = _0x4aaef7.console = _0x4aaef7.console || {};
+	  var _0x1a9a00 = ['log', "warn", "info", "error", "exception", "table", 'trace'];
+	  for (var _0x27f709 = 0; _0x27f709 < _0x1a9a00.length; _0x27f709++) {
+		var _0x1acc3f = _0x1ac3fb.constructor.prototype.bind(_0x1ac3fb);
+		var _0x3080a3 = _0x1a9a00[_0x27f709];
+		var _0x15ce23 = _0x2761d2[_0x3080a3] || _0x1acc3f;
+		_0x1acc3f.__proto__ = _0x1ac3fb.bind(_0x1ac3fb);
+		_0x1acc3f.toString = _0x15ce23.toString.bind(_0x15ce23);
+		_0x2761d2[_0x3080a3] = _0x1acc3f;
+	  }
+	});
+	_0x201df3();
+	
+	function loadPluginInfo(_0x2f7505) {
+	  var _0x45dbcf = "https://Nazarii77.github.io/lampa-plugins/readme.json?v=" + Date.now();
+	  var _0x1f6e92 = new XMLHttpRequest();
+	  _0x1f6e92.open('GET', _0x45dbcf, true);
+	  _0x1f6e92.timeout = 5000;
+	  _0x1f6e92.onload = function () {
+		if (_0x1f6e92.status >= 200 && _0x1f6e92.status < 300) {
+		  try {
+			aboutPluginData = JSON.parse(_0x1f6e92.responseText);
+			if (aboutPluginData && typeof aboutPluginData === "object") {
+			  _0x2f7505(null, aboutPluginData);
+			} else {
+			  _0x2f7505("Неверный формат данных", null);
+			}
+		  } catch (_0x2d2379) {
+			_0x2f7505("Ошибка парсинга данных: " + _0x2d2379.message, null);
+		  }
+		} else {
+		  _0x2f7505("Ошибка HTTP: " + _0x1f6e92.status, null);
+		}
+	  };
+	  _0x1f6e92.onerror = function () {
+		_0x2f7505("Сетевая ошибка", null);
+	  };
+	  _0x1f6e92.ontimeout = function () {
+		_0x2f7505("Тайм-аут запроса", null);
+	  };
+	  _0x1f6e92.send();
+	}
+	function showAboutPlugin() {
+	  return;
+	}
     // Функция для добавления лейблов на карточки
     function changeMovieTypeLabels() {
         // Стили для лейблов
