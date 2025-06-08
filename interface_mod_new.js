@@ -441,10 +441,10 @@
         var mins = minutes % 60;
         var result = '';
         if (hours > 0) {
-            result += hours + ' ' + plural(hours, 'час', 'часа', 'часов');
-            if (mins > 0) result += ' ' + mins + ' ' + plural(mins, 'минута', 'минуты', 'минут');
+            result += hours + ' ' + plural(hours, 'година', 'години', 'годин');
+            if (mins > 0) result += ' ' + mins + ' ' + plural(mins, 'хвилина', 'хвиллини', 'хвилин');
         } else {
-            result += mins + ' ' + plural(mins, 'минута', 'минуты', 'минут');
+            result += mins + ' ' + plural(mins, 'хвилина', 'хвиллини', 'хвилин');
         }
         return result;
     }
