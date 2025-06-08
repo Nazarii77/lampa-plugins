@@ -60,7 +60,7 @@
                     en: 'RU Cinemas'
                 },
                 cinemabywolf_en: {
-                    ru: 'Кінотеатри',
+                    ru: 'EN Кінотеатри',
                     en: 'EN Cinemas'
                 },
                 cinemabywolf_ua: {
@@ -125,7 +125,7 @@
             var $btnRU = $(`
                 <li class="menu__item selector cinemabywolf-btn-ru">
                     <div class="menu__ico">${ico}</div>
-                    <div class="menu__text">кінотеатри</div>
+                    <div class="menu__text">Кінотеатри</div>
                 </li>
             `);
             $btnRU.on('hover:enter', function () {
@@ -148,7 +148,7 @@
             var $btnEN = $(`
                 <li class="menu__item selector cinemabywolf-btn-en">
                     <div class="menu__ico">${ico}</div>
-                    <div class="menu__text">кінотеатри</div>
+                    <div class="menu__text">Кінотеатри</div>
                 </li>
             `);
             $btnEN.on('hover:enter', function () {
@@ -171,7 +171,7 @@
             var $btnUA = $(`
                 <li class="menu__item selector cinemabywolf-btn-ua">
                     <div class="menu__ico">${ico}</div>
-                    <div class="menu__text">кінотеатри</div>
+                    <div class="menu__text">Кінотеатри</div>
                 </li>
             `);
             $btnUA.on('hover:enter', function () {
