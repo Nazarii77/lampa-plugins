@@ -60,7 +60,7 @@
                     en: 'RU Cinemas'
                 },
                 cinemabywolf_en: {
-                    ru: 'EN Кінотеатри',
+                    ru: 'Кінотеатри',
                     en: 'EN Cinemas'
                 },
                 cinemabywolf_ua: {
