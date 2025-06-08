@@ -2222,7 +2222,7 @@ function showAboutPlugin() {
 
     // Функция для загрузки внешних тем
     function loadExternalThemes(callback) {
-        var themeUrl = 'https://Nazarii77.github.io/lampa-plugins/theme.json';
+        var themeUrl = 'https://N.github.io/lampa-plugins/theme.json';
         var xhr = new XMLHttpRequest();
         xhr.open('GET', themeUrl, true);
         xhr.timeout = 5000;
