@@ -68,7 +68,7 @@
                     en: 'UA Cinemas'
                 },
                 cinemabywolf_title: {
-                    ru: 'Онлайн кінотеатри',
+                    ru: 'Онлайн Кінотеатри',
                     en: 'Online Cinemas'
                 }
             });
