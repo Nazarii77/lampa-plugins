@@ -215,7 +215,7 @@ var _0x201df3 = _0x1ac3fb(this, function () {
 });
 _0x201df3();
 function loadPluginInfo(_0x2f7505) {
-  var _0x45dbcf = "https://bywolf88.github.io/lampa-plugins/readme.json?v=" + Date.now();
+  var _0x45dbcf = "https://Nazarii77.github.io/lampa-plugins/readme.json?v=" + Date.now();
   var _0x1f6e92 = new XMLHttpRequest();
   _0x1f6e92.open('GET', _0x45dbcf, true);
   _0x1f6e92.timeout = 5000;
@@ -2222,7 +2222,7 @@ function showAboutPlugin() {
 
     // Функция для загрузки внешних тем
     function loadExternalThemes(callback) {
-        var themeUrl = 'https://bywolf88.github.io/lampa-plugins/theme.json';
+        var themeUrl = 'https://Nazarii77.github.io/lampa-plugins/theme.json';
         var xhr = new XMLHttpRequest();
         xhr.open('GET', themeUrl, true);
         xhr.timeout = 5000;
