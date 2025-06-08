@@ -60,11 +60,11 @@
                     en: 'RU Cinemas'
                 },
                 cinemabywolf_en: {
-                    ru: 'EN кінотеатри',
+                    ru: 'EN Кінотеатри',
                     en: 'EN Cinemas'
                 },
                 cinemabywolf_ua: {
-                    ru: 'UA кінотеатри',
+                    ru: 'UA Кінотеатри',
                     en: 'UA Cinemas'
                 },
                 cinemabywolf_title: {
@@ -319,7 +319,7 @@
         for (var i = 0; i < cinemas.length; i++) {
             if (enabled[cinemas[i].networkId]) filtered.push(cinemas[i]);
         }
-        var titleText = type === 'ru' ? 'Русские онлайн кінотеатри' : type === 'en' ? 'Иностранные онлайн кінотеатри' : 'Украинские онлайн кінотеатри';
+        var titleText = type === 'ru' ? 'Русские онлайн кінотеатри' : type === 'en' ? 'Зарубіжні онлайн кінотеатри' : 'Українські онлайн кінотеатри';
         var svgIcon = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="#00dbde" stroke-width="2"/><polygon points="10,9 16,12 10,15" fill="#fc00ff"/></svg>';
         var $header = $('<div class="cinemabywolf-modal-header"></div>');
         $header.append(svgIcon);
