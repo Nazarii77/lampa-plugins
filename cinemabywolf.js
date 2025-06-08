@@ -56,7 +56,7 @@
         if (Lampa && Lampa.Lang) {
             Lampa.Lang.add({
                 cinemabywolf_ru: {
-                    ru: 'RU кінотеатри',
+                    ru: 'RU Кінотеатри',
                     en: 'RU Cinemas'
                 },
                 cinemabywolf_en: {
