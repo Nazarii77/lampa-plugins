@@ -2425,7 +2425,7 @@
                         
                         if (text.match(/Сезон(?:и)?:?\s*(\d+)/i) || text.match(/(\d+)\s+Сезон(?:у|ів)?/i)) {
                             seasonText = text;
-                        } else if (text.match(/серії?:?\s*(\d+)/i) || text.match(/(\d+)\s+Сері(?:й)/ї)) {
+                        } else if (text.match(/серії?:?\s*(\d+)/i) || text.match(/(\d+)\s+Сері(?:ї|й)/i)) {
                             episodeText = text;
                         } else if (text.match(/Тривалість/i) || text.indexOf('≈') !== -1) {
                             durationText = text;
