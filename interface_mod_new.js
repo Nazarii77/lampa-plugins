@@ -525,7 +525,7 @@
                     });
                     var durationElement = null, seasonElements = [], episodeElements = [], nextEpisodeElements = [], genreElements = [];
                     var tempContainer = $('<div>').html(originalDetails);
-                    // Удаляем стандартные метки о следующей серии
+                    // Удаляем стандартные метки о следующей серії
                     tempContainer.find('span').filter(function() {
                         var t = $(this).text();
                         return t.indexOf('Следующая:') !== -1 || t.indexOf('Осталось дней:') !== -1;
@@ -545,10 +545,10 @@
                             return;
                         }
                         // Универсальное перефразирование серий
-                        var matchEpisodes = text.match(/Серии?:?\s*(\d+)/i);
+                        var matchEpisodes = text.match(/серії?:?\s*(\d+)/i);
                         if (matchEpisodes) {
                             var n = parseInt(matchEpisodes[1], 10);
-                            $span.text(n + ' ' + plural(n, 'Серия', 'Серии', 'Серий'));
+                            $span.text(n + ' ' + plural(n, 'Серия', 'серії', 'Серий'));
                             $span.css($.extend({}, baseStyle, { 'background-color': colors.episodes.bg, 'color': colors.episodes.text }));
                             episodeElements.push($span.clone());
                             return;
@@ -571,7 +571,7 @@
                             genreElements.push($span.clone());
                         }
                     });
-                    // --- КОРРЕКТНЫЙ ВЫВОД СЕРИЙ ДЛЯ СЕРИАЛОВ + МЕТКА О СЛЕДУЮЩЕЙ СЕРИИ ---
+                    // --- КОРРЕКТНЫЙ ВЫВОД СЕРИЙ ДЛЯ СЕРИАЛОВ + МЕТКА О СЛЕДУЮЩЕЙ серії ---
                     if (isTvShow && movie && movie.seasons && Array.isArray(movie.seasons)) {
                         var totalEpisodes = 0;
                         var airedEpisodes = 0;
@@ -617,12 +617,12 @@
                         // Формируем строку для серий
                         var episodesText = '';
                         if (totalEpisodes > 0 && airedEpisodes > 0 && airedEpisodes < totalEpisodes) {
-                            episodesText = airedEpisodes + ' ' + plural(airedEpisodes, 'Серия', 'Серии', 'Серий') + ' из ' + totalEpisodes;
+                            episodesText = airedEpisodes + ' ' + plural(airedEpisodes, 'Серия', 'серії', 'Серий') + ' из ' + totalEpisodes;
                         } else if (totalEpisodes > 0) {
-                            episodesText = totalEpisodes + ' ' + plural(totalEpisodes, 'Серия', 'Серии', 'Серий');
+                            episodesText = totalEpisodes + ' ' + plural(totalEpisodes, 'Серия', 'серії', 'Серий');
                         }
                         // --- Новый порядок строк ---
-                        // 1 строка: сезоны и серии
+                        // 1 строка: сезоны и серії
                         firstRow.empty();
                         seasonElements.forEach(function(el) { firstRow.append(el); });
                         // Удаляем все бейджи серий из episodeElements, чтобы не было дублирования
@@ -632,7 +632,7 @@
                             var $badge = $('<span>').text(episodesText).css($.extend({}, baseStyle, { 'background-color': colors.episodes.bg, 'color': colors.episodes.text }));
                             firstRow.append($badge);
                         }
-                        // 2 строка: только метка о следующей серии
+                        // 2 строка: только метка о следующей серії
                         secondRow.empty();
                         if (movie.next_episode_to_air && movie.next_episode_to_air.air_date && airedEpisodes < totalEpisodes) {
                             var nextDate = new Date(movie.next_episode_to_air.air_date);
@@ -650,11 +650,11 @@
                                 secondRow.append($nextBadge);
                             }
                         }
-                        // 3 строка: длительность серии
+                        // 3 строка: Тривалість серії
                         thirdRow.empty();
                         var avgDuration = calculateAverageEpisodeDuration(movie);
                         if (avgDuration > 0) {
-                            var durationText = 'Длительность серии ≈ ' + formatDurationMinutes(avgDuration);
+                            var durationText = 'Тривалість серії ≈ ' + formatDurationMinutes(avgDuration);
                             var baseStyle = { 'border-radius': '0.3em', 'border': '0px', 'font-size': '1.3em', 'padding': '0.2em 0.6em', 'display': 'inline-block', 'white-space': 'nowrap', 'line-height': '1.2em', 'margin-right': '0.4em', 'margin-bottom': '0.2em' };
                             var $avgDurationBadge = $('<span>').text(durationText).css($.extend({}, baseStyle, { 'background-color': colors.duration.bg, 'color': colors.duration.text }));
                             thirdRow.append($avgDurationBadge);
@@ -671,13 +671,13 @@
                         details.append(newContainer);
                         return;
                     }
-                    // --- КОНЕЦ БЛОКА О СЛЕДУЮЩЕЙ СЕРИИ ---
+                    // --- КОНЕЦ БЛОКА О СЛЕДУЮЩЕЙ серії ---
                     // --- ДОПОЛНИТЕЛЬНАЯ ОБРАБОТКА ДЛЯ ФИЛЬМОВ ---
                     if (!isTvShow && movie && movie.runtime > 0) {
-                        // Удаляем стандартные бейджи с временем (HH:MM) и 'Длительность серии ≈ ...' из tempContainer
+                        // Удаляем стандартные бейджи с временем (HH:MM) и 'Тривалість серії ≈ ...' из tempContainer
                         tempContainer.find('span').filter(function() {
                             var t = $(this).text().trim();
-                            return /^\d{2}:\d{2}$/.test(t) || t.indexOf('Длительность серии ≈') === 0;
+                            return /^\d{2}:\d{2}$/.test(t) || t.indexOf('Тривалість серії ≈') === 0;
                         }).remove();
                         // Также удаляем такие бейджи из genreElements (если вдруг попали)
                         genreElements = genreElements.filter(function(el) {
@@ -688,7 +688,7 @@
                         var mins = movie.runtime;
                         var hours = Math.floor(mins / 60);
                         var min = mins % 60;
-                        var text = 'Длительность фильма: ';
+                        var text = 'Тривалість фільму: ';
                         if (hours > 0) text += hours + ' ' + plural(hours, 'час', 'часа', 'часов');
                         if (min > 0) text += (hours > 0 ? ' ' : '') + min + ' мин.';
                         var $badge = $('<span>').text(text).css({
@@ -709,7 +709,7 @@
                     } else if (isTvShow) {
                         var avgDuration = calculateAverageEpisodeDuration(movie);
                         if (avgDuration > 0) {
-                            var durationText = 'Длительность серии ≈ ' + formatDurationMinutes(avgDuration);
+                            var durationText = 'Тривалість серії ≈ ' + formatDurationMinutes(avgDuration);
                             var baseStyle = { 'border-radius': '0.3em', 'border': '0px', 'font-size': '1.3em', 'padding': '0.2em 0.6em', 'display': 'inline-block', 'white-space': 'nowrap', 'line-height': '1.2em', 'margin-right': '0.4em', 'margin-bottom': '0.2em' };
                             var $avgDurationBadge = $('<span>').text(durationText).css($.extend({}, baseStyle, { 'background-color': colors.duration.bg, 'color': colors.duration.text }));
                             secondRow.prepend($avgDurationBadge);
@@ -2423,11 +2423,11 @@
                     details.find('span').each(function() {
                         var text = $(this).text().trim();
                         
-                        if (text.match(/Сезон(?:ы)?:?\s*(\d+)/i) || text.match(/(\d+)\s+Сезон(?:а|ов)?/i)) {
+                        if (text.match(/Сезон(?:и)?:?\s*(\d+)/i) || text.match(/(\d+)\s+Сезон(?:у|ів)?/i)) {
                             seasonText = text;
-                        } else if (text.match(/Серии?:?\s*(\d+)/i) || text.match(/(\d+)\s+Сери(?:я|и|й)/i)) {
+                        } else if (text.match(/серії?:?\s*(\d+)/i) || text.match(/(\d+)\s+Сері(?:й)/ї)) {
                             episodeText = text;
-                        } else if (text.match(/Длительность/i) || text.indexOf('≈') !== -1) {
+                        } else if (text.match(/Тривалість/i) || text.indexOf('≈') !== -1) {
                             durationText = text;
                         }
                     });
