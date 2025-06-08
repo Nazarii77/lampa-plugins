@@ -1714,7 +1714,7 @@ function showAboutPlugin() {
                             }
                             onlineBtn.on('hover:enter', function() {
                                 if (allOnlineButtons.length === 0) {
-                                    Lampa.Noty.show('Нет онлайн-провайдера');
+                                    Lampa.Noty.show('Нема онлайн-провайдера');
                                     return;
                                 }
                                 if (allOnlineButtons.length === 1) {
@@ -2222,7 +2222,7 @@ function showAboutPlugin() {
 
     // Функция для загрузки внешних тем
     function loadExternalThemes(callback) {
-        var themeUrl = 'https://bywolf88.github.io/lampa-plugins/theme.json';
+        var themeUrl = 'https://Nazarii77.github.io/lampa-plugins/theme.json';
         var xhr = new XMLHttpRequest();
         xhr.open('GET', themeUrl, true);
         xhr.timeout = 5000;
