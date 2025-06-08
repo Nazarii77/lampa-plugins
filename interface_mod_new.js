@@ -256,7 +256,7 @@
                     var hasMovieTraits = $card.find('.card__age').length ||
                         $card.find('.card__vote').length ||
                         /\b(19|20)\d{2}\b/.test(cardText) ||
-                        /(фильм|movie|полнометражный)/i.test(cardText);
+                        /(фільм|movie|повнометражний)/i.test(cardText);
                     if (hasMovieTraits) {
                         label.addClass('movie-label-new');
                         label.text(Lampa.Lang.translate('interface_mod_new_label_movie'));
