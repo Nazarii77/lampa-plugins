@@ -689,8 +689,8 @@
                         var hours = Math.floor(mins / 60);
                         var min = mins % 60;
                         var text = 'Тривалість фільму: ';
-                        if (hours > 0) text += hours + ' ' + plural(hours, 'час', 'часа', 'часов');
-                        if (min > 0) text += (hours > 0 ? ' ' : '') + min + ' мин.';
+                        if (hours > 0) text += hours + ' ' + plural(hours, 'година', 'години', 'годин');
+                        if (min > 0) text += (hours > 0 ? ' ' : '') + min + ' хв.';
                         var $badge = $('<span>').text(text).css({
                             'border-radius': '0.3em',
                             'border': '0px',
